@@ -15,6 +15,10 @@ godot/
 ├── autoload/
 │   ├── GameStateManager.gd       stan partii i reguły (decyduje tylko serwer)
 │   └── NetworkManager.gd         ENet, RPC, lobby, żetony powrotu, rozłączenia, ogłoszenia hosta
+├── scripts/
+│   ├── autoload/
+│   │   └── GameData.gd           baza treści: bogowie, stwory i herosi, Monumenty (same dane)
+│   └── core/, ai/                na razie puste: docelowe miejsce reguł i AI (TASKS.md, rozdział 0)
 ├── lan/
 │   ├── LanBeacon.gd              nadajnik: ogłoszenie gry co 1,5 s (UDP broadcast)
 │   └── LanListener.gd            odbiornik: lista gier, server_found / server_updated / server_lost
@@ -34,7 +38,9 @@ godot/
 │   └── build_board.gd            generator Board.tscn z ArchipelagoMap (uruchamiany raz)
 ├── scenes/
 │   ├── Main.tscn, main.gd        scena główna: lista gier LAN, poczekalnia, panel partii, dziennik
-│   └── LanLobby.tscn, lan_lobby.gd  ekran „Gry w sieci lokalnej” (ItemList + przyciski)
+│   ├── LanLobby.tscn, lan_lobby.gd  ekran „Gry w sieci lokalnej” (ItemList + przyciski)
+│   └── main_menu/, lobby/, board/, ui/  na razie puste: docelowe miejsca scen
+├── assets/, resources/           na razie puste: grafika, dźwięk, czcionki oraz zasoby kart i Monumentów
 └── tests/
     ├── RunTests.tscn             testy bez okna (reguły, ENet, UDP, UI)
     └── run_tests.gd
@@ -48,13 +54,15 @@ godot/
 
 | Kolejność | Ścieżka | Nazwa | Global Variable |
 |---|---|---|---|
-| 1 | `res://autoload/GameStateManager.gd` | `GameStateManager` | włączone |
-| 2 | `res://autoload/NetworkManager.gd` | `NetworkManager` | włączone |
+| 1 | `res://scripts/autoload/GameData.gd` | `GameData` | włączone |
+| 2 | `res://autoload/GameStateManager.gd` | `GameStateManager` | włączone |
+| 3 | `res://autoload/NetworkManager.gd` | `NetworkManager` | włączone |
 
-W `project.godot` z repozytorium oba autoloady są już wpisane.
+W `project.godot` z repozytorium wszystkie trzy autoloady są już wpisane.
 
 - **Kolejność ma znaczenie.** `NetworkManager` w `_ready()` szuka węzła
-  `GameStateManager` obok siebie i łączy się z jego sygnałami.
+  `GameStateManager` obok siebie i łączy się z jego sygnałami. `GameData`
+  to same dane (stałe i funkcje statyczne), więc stoi pierwszy.
 - **Dlaczego autoloady.** RPC w Godot trafiają do węzła o tej samej ścieżce na
   każdym komputerze. Autoload ma zawsze ścieżkę `/root/NetworkManager`, więc
   zmiana sceny (menu → plansza) nie psuje komunikacji.
@@ -67,6 +75,7 @@ W `project.godot` z repozytorium oba autoloady są już wpisane.
 
 ```text
 /root
+├── GameData                  autoload: baza treści (bogowie, stwory, Monumenty), tylko do odczytu
 ├── GameStateManager          autoload: na serwerze pełny stan, wszędzie `view` (projekcja dla gracza)
 ├── NetworkManager            autoload: serwer / klient ENet, RPC, miejsca, żetony, rozłączenia
 │   └── LanBeacon             tworzony przez host_game(), usuwany przez leave_game()
@@ -632,7 +641,8 @@ Obce połączenie z gry solo serwer rozłącza od razu.
 godot --headless --path godot res://tests/RunTests.tscn
 ```
 
-Kod wyjścia 0 oznacza, że wszystkie testy przeszły. Testów jest 40 i obejmują:
+Kod wyjścia 0 oznacza, że wszystkie testy przeszły. Testów jest 41 i obejmują:
+- dane gry: spójność `GameData` (walidator), zgodność bogów i budynków z regułami serwera, talie z dodatkami i bez;
 - reguły: licytację, przebicie i kapłanów, ruchy i most z flot, bitwy z Fortecami i Portami, rozkład kości, projekcję, koniec cyklu i AI;
 - sieć: synchronizację projekcji, odrzucanie ruchów poza kolejką i podszywania się pod serwer, przebicie przez sieć, ten sam raport bitwy u wszystkich;
 - rozłączenia: rozłączenie i powrót z pełną migawką, przejęcie miejsca przez AI po oknie powrotu, odmowę dla spóźnionego gracza, zniknięcie hosta i grę solo;

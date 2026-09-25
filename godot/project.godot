@@ -17,6 +17,7 @@ config/features=PackedStringArray("4.7")
 
 [autoload]
 
+GameData="*res://scripts/autoload/GameData.gd"
 GameStateManager="*res://autoload/GameStateManager.gd"
 NetworkManager="*res://autoload/NetworkManager.gd"
 

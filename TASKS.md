@@ -47,7 +47,7 @@ Zrobione:
 
 Do zrobienia:
 
-- [ ] **Szkielet bazy danych gry**: `godot/scripts/autoload/GameData.gd` z bogami, stworami i herosami oraz Monumentami
+- [x] **Szkielet bazy danych gry**: `godot/scripts/autoload/GameData.gd` (autoload) z bogami, stworami i herosami oraz Monumentami, walidatorem i testem spójności z regułami serwera
 - [ ] **Dary bogów i rekrutacja (TS, potem Godot)**: floty (Posejdon), oddziały (Ares), kapłani (Zeus), filozofowie (Atena). Rosnące koszty w turze i limit na turę `[zweryfikuj]`
 - [ ] **Tura Apolla**: dochód, znacznik dobrobytu, premia dla pierwszego gracza u Apolla `[zweryfikuj]`
 - [ ] **Zakup stworów i efekty kart**: tor 2/3/4 JZ, zniżka ze Świątyń, efekty według klucza `effect`. W TS jest dziś tylko Gigant, a `BUY_CREATURE` zwraca `UNSUPPORTED_ACTION`

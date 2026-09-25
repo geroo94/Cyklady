@@ -37,6 +37,7 @@ npm run check      # tsc (strict) + testy (node --test)
 | Wersja Godot 4 (GDScript, ENet): sieć i stan gry | `godot/autoload/NetworkManager.gd`, `godot/autoload/GameStateManager.gd`; instrukcja w [godot/README.md](godot/README.md) |
 | Wersja Godot 4: plansza, wybór pól i podświetlanie ruchów | `godot/board/` (`Board.tscn`, `board.gd` z `highlight_valid_moves`, `TerritoryNode.gd`, `territory.gdshader`), reguły wspólne dla serwera i planszy w `godot/rules/MoveRules.gd`; opis w rozdziale 3 [godot/README.md](godot/README.md) |
 | Wersja Godot 4: licytacja (tory ofiar, kapłani, Apollo, przebicie) | `godot/bidding/` (`BiddingBoard.tscn`, `BiddingBoardUI.gd`, `OfferingTrack.gd`), reguły wspólne dla serwera i panelu w `godot/rules/BidRules.gd`, powiadomienie `rpc_notify_bid_displaced` → `GameStateManager.bid_displaced`; opis w rozdziale 4 [godot/README.md](godot/README.md) |
+| Wersja Godot 4: baza treści (bogowie, stwory i herosi, Monumenty) | `godot/scripts/autoload/GameData.gd` (autoload `GameData`): stałe `GODS`, `CREATURES`, `HEROES`, `MONUMENTS`, talie zależne od dodatków, `validate()`; plan prac w [TASKS.md](TASKS.md) |
 | Mapa demonstracyjna dla 3–5 graczy z lobby | `src/examples/archipelago.ts` (`archipelagoLobby`), przykłady `lanServer.ts` i `lanBrowser.ts` |
 | Maszyna stanów | `phases.ts` (stany i konteksty), `stateMachine.ts` (przejścia, strażnicy, haki) |
 

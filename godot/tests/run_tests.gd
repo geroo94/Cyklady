@@ -91,6 +91,7 @@ func _ready() -> void:
 	NetworkManager.discovery_ports = [_discovery_port]
 	NetworkManager.single_player_ports = _single_player_ports
 	var tests := [
+		["Dane gry: GameData – spójna baza, zgodna z regułami serwera, talie z dodatkami i bez", test_game_data],
 		["Stan: nowa partia (złoto, miasta, floty, bogowie, kolejka)", test_new_game],
 		["Licytacja: walidacja tury, boga, kwoty i złota", test_bid_validation],
 		["Licytacja: przebicie, zakaz powrotu, kapłani, Apollo i kolejność tur", test_outbid_and_settlement],
@@ -142,6 +143,37 @@ func _ready() -> void:
 # =============================================================================
 # Reguły (bez sieci)
 # =============================================================================
+
+## Baza treści (autoload GameData): dane spójne, bogowie i budynki zgodni z regułami
+## serwera, talie zależne od dodatków, a odczyt zwraca kopie.
+func test_game_data() -> void:
+	check_eq(GameData.validate(), PackedStringArray(), "baza bez błędów")
+	check_eq(GameData.randomized_gods(), PackedStringArray(GameState.GODS), "bogowie losowani na tor = GameStateManager.GODS")
+	for god_id: String in MoveRules.GOD_BUILDING:
+		check_eq(GameData.god_def(god_id)["building"], MoveRules.GOD_BUILDING[god_id], "budynek boga %s = MoveRules.GOD_BUILDING" % god_id)
+	check_eq(GameData.god_def("APOLLO")["gold_bonus"], 1, "Apollo: 1 JZ, tak jak płaci GameStateManager")
+	var base := {"hades": false, "monuments": false}
+	var full := {"hades": true, "monuments": true}
+	check_eq(GameData.gods_for(base), PackedStringArray(["POSEIDON", "ARES", "ZEUS", "ATHENA", "APOLLO"]), "bogowie podstawki")
+	check("HADES" in GameData.gods_for(full), "Hades w partii z dodatkiem Hades")
+	var deck := GameData.myth_deck(base)
+	check_eq(deck.count("PEGASUS"), 2, "karta w talii tyle razy, ile ma kopii")
+	check(not deck.has("ACHILLES"), "bez Hadesa nie ma herosów w talii")
+	check(GameData.myth_deck(full).has("ACHILLES"), "z Hadesem herosi są w talii stworów")
+	check_eq(GameData.myth_card_def("ULYSSES")["type"], "HERO", "karta z talii rozpoznaje herosa")
+	check_eq(GameData.monument_deck(base), PackedStringArray(), "bez dodatku Monumenty nie ma kart Monumentów")
+	check_eq(GameData.monument_deck(full).size(), GameData.MONUMENTS.size(), "z dodatkiem Monumenty są wszystkie karty")
+	var zeus := GameData.god_def("ZEUS")
+	zeus["building"] = "PALACE"
+	check_eq(GameData.god_def("ZEUS")["building"], "TEMPLE", "odczyt zwraca kopię: jej zmiana nie psuje bazy")
+	check(GameData.god_def("HERMES").is_empty(), "nieznany bóg: pusty słownik")
+	# Walidator wychwytuje błędy we wpisach.
+	var problems := GameData._god_problems("ZEUS", zeus)
+	check(problems.size() == 1 and problems[0].contains("PALACE"), "walidator: nieznany budynek (%s)" % [problems])
+	zeus.erase("recruits")
+	problems = GameData._god_problems("ZEUS", zeus)
+	check(problems.size() == 1 and problems[0].contains("recruits"), "walidator: brak pola (%s)" % [problems])
+
 
 func test_new_game() -> void:
 	var gsm := _logic_game()
