@@ -1,6 +1,6 @@
 ## BiddingBoardUI: kontroler interfejsu licytacji (tory ofiar bogów i Apollo).
 ##
-## SCENA (bidding/BiddingBoard.tscn)
+## SCENA (scenes/ui/BiddingBoard.tscn)
 ##   BiddingBoard (PanelContainer, ten skrypt)
 ##   ├── Content (VBoxContainer)
 ##   │   ├── %Banner (PanelContainer) → %BannerLabel   tryb i komunikat, np. „Musisz wybrać innego Boga!”
@@ -43,7 +43,7 @@ signal displacement_shown(player_id: String)
 
 enum Mode { INACTIVE, WAITING, CHOOSING, MUST_CHOOSE_OTHER, SUBMITTED }
 
-const GameState := preload("res://autoload/GameStateManager.gd")
+const GameState := preload("res://scripts/autoload/GameStateManager.gd")
 ## Nazwy bogów i formy potrzebne w komunikatach („tor Aresa”, „na Atenę”), oraz to, co daje ich tura.
 const GODS := {
 	"POSEIDON": {"name": "Posejdon", "genitive": "Posejdona", "accusative": "Posejdona", "gives": "ruch flot i Port"},

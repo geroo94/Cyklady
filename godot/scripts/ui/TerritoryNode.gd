@@ -41,7 +41,7 @@ enum Type { ISLAND, SEA }
 ## Oznaczenie od planszy: pole startowe, cel (ruch, atak, budowa) albo pole przygaszone, bo nie jest celem.
 enum Mark { NONE, SELECTED, MOVE_TARGET, ATTACK_TARGET, BUILD_TARGET, DIMMED }
 
-const SHADER := preload("res://board/territory.gdshader")
+const SHADER := preload("res://assets/shaders/territory.gdshader")
 const LAND_COLOR := Color("d6c28e")
 const SEA_COLOR := Color("2e6c9c")
 ## Kolory graczy (pole "color" gracza w stanie partii).

@@ -1,7 +1,7 @@
 [gd_scene load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://scenes/lan_lobby.gd" id="1_lobby"]
-[ext_resource type="Script" path="res://lan/LanListener.gd" id="2_listener"]
+[ext_resource type="Script" path="res://scripts/network/LanListener.gd" id="2_listener"]
 
 [node name="LanLobby" type="VBoxContainer"]
 script = ExtResource("1_lobby")

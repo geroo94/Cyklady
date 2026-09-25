@@ -16,23 +16,19 @@ i [godot/README.md](godot/README.md) (rozdział 10 „Uproszczenia”).
 
 - [x] **Repozytorium na GitHubie**: `.gitignore` (node_modules, `.godot/`, pliki systemowe), `origin` → github.com/geroo94/Cyklady
 - [x] **Szkielet katalogów Godot**: `assets/` (textures, audio, fonts), `scenes/` (main_menu, lobby, board, ui), `scripts/` (autoload, core, ai), `resources/` (cards, monuments)
-- [ ] **Przeniesienie istniejących plików do nowej struktury**. Dziś kod leży w starym układzie, opisanym w godot/README.md:
+- [x] **Przeniesienie istniejących plików do nowej struktury** (przez `git mv`, historia plików zachowana):
 
-  | Dziś | Docelowo |
+  | Było | Jest |
   |---|---|
   | `autoload/` (GameStateManager, NetworkManager) | `scripts/autoload/` |
-  | `rules/` (BidRules, MoveRules, ArchipelagoMap) | `scripts/core/` |
-  | `lan/` (LanBeacon, LanListener) | `scripts/core/` albo nowy `scripts/net/` |
-  | `board/` | `scenes/board/` |
-  | `bidding/` | `scenes/ui/` |
-  | `scenes/LanLobby.tscn`, `lan_lobby.gd` | `scenes/lobby/` |
-  | `scenes/Main.tscn`, `main.gd` | `scenes/main_menu/` (po wydzieleniu menu, zob. rozdział 5) |
-  | AI z GameStateManager (`_ai_bid`, `_ai_act`) | `scripts/ai/` |
+  | `rules/` (ArchipelagoMap, BidRules, MoveRules) | `scripts/core/` |
+  | `lan/` (LanBeacon, LanListener) | `scripts/network/` |
+  | `board/board.gd`, `TerritoryNode.gd`, `bidding/BiddingBoardUI.gd`, `OfferingTrack.gd` | `scripts/ui/` |
+  | `board/Board.tscn`, `bidding/BiddingBoard.tscn` | `scenes/board/`, `scenes/ui/` |
+  | `board/territory.gdshader` | `assets/shaders/` |
 
-  - Przenosić w doku FileSystem edytora Godota, bo edytor poprawia wtedy ścieżki w scenach.
-  - Ręcznie trzeba poprawić ścieżki `res://` wpisane w 8 skryptach (lista: `grep -rn "res://" --include='*.gd' godot`), sekcje `[application]` i `[autoload]` w `project.godot` oraz ścieżki w ARCHITEKTURA.md i godot/README.md.
-  - Klasy z `class_name` (BidRules, MoveRules, TerritoryNode…) działają po nazwie, więc ich przeniesienie nie psuje odwołań.
-  - Warunek odbioru: wszystkie testy Godot przechodzą.
+  - Po przeniesieniu plików poza edytorem trzeba raz odświeżyć pamięć podręczną Godota: otworzyć projekt w edytorze albo uruchomić `godot --headless --path godot --import`.
+- [ ] **Sceny ekranów w podkatalogach**: `scenes/LanLobby.tscn` i `lan_lobby.gd` → `scenes/lobby/`, `scenes/Main.tscn` i `main.gd` → `scenes/main_menu/` (po wydzieleniu menu, zob. rozdział 5)
 
 ## 1. Logika stanu gry i licytacja
 
@@ -120,6 +116,6 @@ Do zrobienia:
 ## 6. Jakość i wydanie
 
 - [x] **Testy**: TS (`npm run check`) i Godot bez okna (`tests/RunTests.tscn`)
-- [ ] **CI na GitHub Actions**: `npm run check` i testy Godot bez okna przy każdym pushu
+- [ ] **CI na GitHub Actions**: `npm run check` i testy Godot bez okna przy każdym pushu. Świeży klon nie ma `.godot/`, więc przed testami trzeba uruchomić `godot --headless --path godot --import`
 - [ ] **Eksport** na macOS, Windows i Linux (`export_presets.cfg`) oraz instrukcja zapory dla ENet i UDP
 - [ ] **Prawa do treści**: repozytorium jest publiczne, więc przed dodaniem grafik lub tekstów z pudełka trzeba sprawdzić, co wolno opublikować

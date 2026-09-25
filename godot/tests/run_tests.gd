@@ -4,7 +4,7 @@
 ## SceneMultiplayer i własną parę GameStateManager + NetworkManager (ścieżki RPC
 ## liczone są od korzenia gałęzi, więc wyglądają tak samo jak autoloady).
 ##
-## Plansza (board/) jest testowana prawdziwymi zdarzeniami myszy: zdarzenie
+## Plansza (scenes/board/, scripts/ui/) jest testowana prawdziwymi zdarzeniami myszy: zdarzenie
 ## trafia do okna, przez SubViewportContainer do SubViewport z pickingiem fizyki
 ## i dalej do TerritoryNode, tak jak kliknięcie gracza.
 ##
@@ -12,8 +12,8 @@
 ## Kod wyjścia 0: wszystkie testy przeszły.
 extends Node
 
-const GameState := preload("res://autoload/GameStateManager.gd")
-const Network := preload("res://autoload/NetworkManager.gd")
+const GameState := preload("res://scripts/autoload/GameStateManager.gd")
+const Network := preload("res://scripts/autoload/NetworkManager.gd")
 
 
 ## Jeden „komputer”: gałąź drzewa z własnym MultiplayerAPI i zapisem sygnałów.
@@ -921,7 +921,7 @@ func test_lan_lobby_ui() -> void:
 
 
 # =============================================================================
-# Plansza (board/)
+# Plansza (scenes/board/, scripts/ui/)
 # =============================================================================
 
 func test_territory_node() -> void:
@@ -980,7 +980,7 @@ func test_territory_node() -> void:
 
 
 func test_board_scene() -> void:
-	var board: Board = load("res://board/Board.tscn").instantiate()
+	var board: Board = load("res://scenes/board/Board.tscn").instantiate()
 	board.follow_game_state = false
 	board.fit_to_viewport = false
 	add_child(board)
@@ -1031,7 +1031,7 @@ func test_board_picking() -> void:
 	container.size = Vector2(640, 520)
 	var viewport := SubViewport.new()
 	container.add_child(viewport)
-	var board: Board = load("res://board/Board.tscn").instantiate()
+	var board: Board = load("res://scenes/board/Board.tscn").instantiate()
 	board.follow_game_state = false
 	viewport.add_child(board)
 	add_child(container)
@@ -1544,7 +1544,7 @@ func _bidding_game(gods: Array, queue: Array) -> GameState:
 
 
 func _bidding_panel(at: Vector2 = Vector2(16, 16)) -> BiddingBoardUI:
-	var panel: BiddingBoardUI = load("res://bidding/BiddingBoard.tscn").instantiate()
+	var panel: BiddingBoardUI = load("res://scenes/ui/BiddingBoard.tscn").instantiate()
 	panel.follow_game_state = false
 	panel.animation_sec = 0.2
 	panel.position = at

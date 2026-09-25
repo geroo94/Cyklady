@@ -1,6 +1,6 @@
 ## Board: plansza „Archipelag”. Pola, wybór pola i podświetlanie prawidłowych ruchów.
 ##
-## DRZEWO SCENY (board/Board.tscn)
+## DRZEWO SCENY (scenes/board/Board.tscn)
 ##   Board (Node2D, ten skrypt)
 ##   ├── Seas (Node2D)                  pola morskie: TerritoryNode z type = SEA
 ##   │   └── arch_center, arch_n, …     (każde z dzieckiem Shape: CollisionPolygon2D)
@@ -38,7 +38,7 @@ signal build_requested(island_id: String)
 ## Podpowiedź dla gracza: opis pola pod kursorem, cele ruchu albo powód, dla którego ruchu nie ma.
 signal hint_changed(text: String)
 
-const GameState := preload("res://autoload/GameStateManager.gd")
+const GameState := preload("res://scripts/autoload/GameStateManager.gd")
 ## Rodzaj celu w trybie budowy (MoveRules zwraca dla ruchu cele "MOVE" i "ATTACK").
 const TARGET_BUILD := "BUILD"
 const GOD_NAMES := {"POSEIDON": "Posejdona", "ARES": "Aresa", "ZEUS": "Zeusa", "ATHENA": "Ateny", "APOLLO": "Apolla"}

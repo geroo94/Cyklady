@@ -7,7 +7,7 @@
 extends VBoxContainer
 
 ## Skrypt NetworkManagera jako typ: stałe i funkcje statyczne wołamy na typie, a nie na autoloadzie.
-const Network := preload("res://autoload/NetworkManager.gd")
+const Network := preload("res://scripts/autoload/NetworkManager.gd")
 
 ## Port gry dla „Stwórz Grę LAN”.
 @export var game_port := Network.DEFAULT_PORT

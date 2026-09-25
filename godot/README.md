@@ -12,35 +12,36 @@ High-Level Multiplayer API (`ENetMultiplayerPeer`). Całość sprawdzona na Godo
 ```text
 godot/
 ├── project.godot                 autoloady i scena główna są już skonfigurowane
-├── autoload/
-│   ├── GameStateManager.gd       stan partii i reguły (decyduje tylko serwer)
-│   └── NetworkManager.gd         ENet, RPC, lobby, żetony powrotu, rozłączenia, ogłoszenia hosta
 ├── scripts/
 │   ├── autoload/
-│   │   └── GameData.gd           baza treści: bogowie, stwory i herosi, Monumenty (same dane)
-│   └── core/, ai/                na razie puste: docelowe miejsce reguł i AI (TASKS.md, rozdział 0)
-├── lan/
-│   ├── LanBeacon.gd              nadajnik: ogłoszenie gry co 1,5 s (UDP broadcast)
-│   └── LanListener.gd            odbiornik: lista gier, server_found / server_updated / server_lost
-├── rules/
-│   ├── ArchipelagoMap.gd         mapa: wyspy, pola morskie, sąsiedztwo, miasta startowe
-│   ├── MoveRules.gd              reguły ruchu i budowy wspólne dla serwera i planszy
-│   └── BidRules.gd               reguły licytacji wspólne dla serwera i panelu licytacji
-├── board/
-│   ├── Board.tscn, board.gd      plansza: pola, wybór, highlight_valid_moves(), rozkazy
-│   ├── TerritoryNode.gd          pole planszy (Area2D): stan, wygląd, najechanie, kliknięcie
-│   └── territory.gdshader        wypełnienie pola: kolor właściciela, podświetlenie, pulsowanie
-├── bidding/
-│   ├── BiddingBoard.tscn         panel licytacji: tory bogów, Apollo, kwota, tacka, dźwięk
-│   ├── BiddingBoardUI.gd         kontroler: tryby, walidacja przed RPC, przebicie (animacja, dźwięk)
-│   └── OfferingTrack.gd          tor ofiar jednego boga (pola 1–10 i „10+”)
-├── tools/
-│   └── build_board.gd            generator Board.tscn z ArchipelagoMap (uruchamiany raz)
+│   │   ├── GameData.gd           baza treści: bogowie, stwory i herosi, Monumenty (same dane)
+│   │   ├── GameStateManager.gd   stan partii i reguły (decyduje tylko serwer)
+│   │   └── NetworkManager.gd     ENet, RPC, lobby, żetony powrotu, rozłączenia, ogłoszenia hosta
+│   ├── core/
+│   │   ├── ArchipelagoMap.gd     mapa: wyspy, pola morskie, sąsiedztwo, miasta startowe
+│   │   ├── MoveRules.gd          reguły ruchu i budowy wspólne dla serwera i planszy
+│   │   └── BidRules.gd           reguły licytacji wspólne dla serwera i panelu licytacji
+│   ├── network/
+│   │   ├── LanBeacon.gd          nadajnik: ogłoszenie gry co 1,5 s (UDP broadcast)
+│   │   └── LanListener.gd        odbiornik: lista gier, server_found / server_updated / server_lost
+│   ├── ui/
+│   │   ├── board.gd              plansza: pola, wybór, highlight_valid_moves(), rozkazy
+│   │   ├── TerritoryNode.gd      pole planszy (Area2D): stan, wygląd, najechanie, kliknięcie
+│   │   ├── BiddingBoardUI.gd     panel licytacji: tryby, walidacja przed RPC, przebicie (animacja, dźwięk)
+│   │   └── OfferingTrack.gd      tor ofiar jednego boga (pola 1–10 i „10+”)
+│   └── ai/                       na razie puste: miejsce na wydzieloną AI (TASKS.md, rozdział 4)
 ├── scenes/
 │   ├── Main.tscn, main.gd        scena główna: lista gier LAN, poczekalnia, panel partii, dziennik
 │   ├── LanLobby.tscn, lan_lobby.gd  ekran „Gry w sieci lokalnej” (ItemList + przyciski)
-│   └── main_menu/, lobby/, board/, ui/  na razie puste: docelowe miejsca scen
-├── assets/, resources/           na razie puste: grafika, dźwięk, czcionki oraz zasoby kart i Monumentów
+│   ├── board/Board.tscn          scena planszy (skrypt scripts/ui/board.gd)
+│   ├── ui/BiddingBoard.tscn      panel licytacji: tory bogów, Apollo, kwota, tacka, dźwięk
+│   └── main_menu/, lobby/        na razie puste: docelowe miejsca scen menu i poczekalni
+├── assets/
+│   ├── shaders/territory.gdshader  wypełnienie pola: kolor właściciela, podświetlenie, pulsowanie
+│   └── textures/, audio/, fonts/ na razie puste
+├── resources/                    na razie puste: zasoby kart i Monumentów
+├── tools/
+│   └── build_board.gd            generator scenes/board/Board.tscn z ArchipelagoMap (uruchamiany raz)
 └── tests/
     ├── RunTests.tscn             testy bez okna (reguły, ENet, UDP, UI)
     └── run_tests.gd
@@ -55,8 +56,8 @@ godot/
 | Kolejność | Ścieżka | Nazwa | Global Variable |
 |---|---|---|---|
 | 1 | `res://scripts/autoload/GameData.gd` | `GameData` | włączone |
-| 2 | `res://autoload/GameStateManager.gd` | `GameStateManager` | włączone |
-| 3 | `res://autoload/NetworkManager.gd` | `NetworkManager` | włączone |
+| 2 | `res://scripts/autoload/GameStateManager.gd` | `GameStateManager` | włączone |
+| 3 | `res://scripts/autoload/NetworkManager.gd` | `NetworkManager` | włączone |
 
 W `project.godot` z repozytorium wszystkie trzy autoloady są już wpisane.
 
@@ -202,11 +203,11 @@ Pakiet (JSON w jednym datagramie, do 1 KiB):
 
 ## 3. Plansza: wybór pól i podświetlanie ruchów
 
-Plansza to scena `board/Board.tscn`:
+Plansza to scena `scenes/board/Board.tscn` (skrypt `scripts/ui/board.gd`):
 - każde pole to węzeł `TerritoryNode` (`Area2D`);
 - `board.gd` zamienia kliknięcia na wybór pola, podświetlenie celów i rozkazy.
 
-Legalność ruchu liczą wspólne reguły `rules/MoveRules.gd`. Te same funkcje
+Legalność ruchu liczą wspólne reguły `scripts/core/MoveRules.gd`. Te same funkcje
 sprawdzają ruch na serwerze (`GameStateManager.apply_move`) i wyznaczają
 podświetlenie u klienta. Podświetlone pole to dokładnie to, które serwer
 przyjmie. Test własności sprawdza to na tysiącach losowych stanów.
@@ -277,7 +278,7 @@ W `Main.tscn` plansza siedzi w viewporcie mapy:
 ### Wygląd pola
 
 Pole buduje trzy wewnętrzne węzły (`INTERNAL_MODE`). Nie trafiają one do pliku sceny:
-- `Fill`: `Polygon2D` z shaderem `board/territory.gdshader` (`base_color`, `highlight_color`, `highlight_strength`, `pulse_speed`, `hover`);
+- `Fill`: `Polygon2D` z shaderem `assets/shaders/territory.gdshader` (`base_color`, `highlight_color`, `highlight_strength`, `pulse_speed`, `hover`);
 - `Outline`: `Line2D` wokół pola;
 - `Label`: nazwa wyspy, jednostki, budynki i monument.
 
@@ -387,14 +388,14 @@ Stan pola ma miejsce na elementy dodatków:
 
 ## 4. Licytacja: tory ofiar, kapłani i przebicie
 
-Panel `bidding/BiddingBoard.tscn` (skrypt `BiddingBoardUI.gd`) prowadzi
+Panel `scenes/ui/BiddingBoard.tscn` (skrypt `scripts/ui/BiddingBoardUI.gd`) prowadzi
 gracza przez licytację:
 - tor ofiar każdego boga (pola 1–10 i „10+”) ze znacznikiem najwyższej ofiary w kolorze gracza;
 - kolejka Apolla z miejscami 1, 2, 3…;
 - suwak kwoty z podglądem kosztu po zniżce kapłanów;
 - natychmiastowa reakcja na przebicie: tryb „Musisz wybrać innego Boga”, animacja znacznika i dźwięk.
 
-Reguły są w `rules/BidRules.gd`. Te same funkcje sprawdzają ofiarę na
+Reguły są w `scripts/core/BidRules.gd`. Te same funkcje sprawdzają ofiarę na
 serwerze (`apply_bid`) i w panelu przed wysłaniem RPC, więc panel nie wysyła
 ofiary, którą serwer by odrzucił.
 

@@ -2,8 +2,8 @@
 
 [ext_resource type="Script" path="res://scenes/main.gd" id="1_main"]
 [ext_resource type="PackedScene" path="res://scenes/LanLobby.tscn" id="2_lobby"]
-[ext_resource type="PackedScene" path="res://board/Board.tscn" id="3_board"]
-[ext_resource type="PackedScene" path="res://bidding/BiddingBoard.tscn" id="4_bidding"]
+[ext_resource type="PackedScene" path="res://scenes/board/Board.tscn" id="3_board"]
+[ext_resource type="PackedScene" path="res://scenes/ui/BiddingBoard.tscn" id="4_bidding"]
 
 [node name="Main" type="Control"]
 layout_mode = 3

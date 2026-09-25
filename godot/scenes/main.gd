@@ -3,8 +3,8 @@
 ## Pokazuje, jak interfejs łączy się z autoloadami:
 ##   przyciski i plansza → NetworkManager (intencje: ofiara, ruch, budowa, koniec tury),
 ##   sygnały             → odświeżenie widoku (view_changed, battle_reported, lobby_changed…).
-## Plansza (board/Board.tscn w SubViewport) sama rysuje GameStateManager.view
-## i podświetla prawidłowe ruchy. Panel licytacji (bidding/BiddingBoard.tscn)
+## Plansza (scenes/board/Board.tscn w SubViewport) sama rysuje GameStateManager.view
+## i podświetla prawidłowe ruchy. Panel licytacji (scenes/ui/BiddingBoard.tscn)
 ## sam pokazuje tory ofiar i przebicia. Tutaj zamieniamy ich sygnały na rozkazy.
 ## Ekrany przełączają się wyłącznie na sygnały: serwer wystartował albo klient
 ## został przyjęty → poczekalnia, przyszedł stan partii → panel gry.
@@ -13,7 +13,7 @@
 extends Control
 
 ## Skrypt stanu gry jako typ: jego funkcje statyczne (np. actor_of) wołamy na typie, a nie na autoloadzie.
-const GameState := preload("res://autoload/GameStateManager.gd")
+const GameState := preload("res://scripts/autoload/GameStateManager.gd")
 const OUTCOMES := {"ATTACKER_WON": "wygrywa atakujący", "DEFENDER_WON": "wygrywa obrońca", "MUTUAL_DESTRUCTION": "obie strony zniszczone"}
 const MODIFIERS := {"FORTRESS": "Forteca", "PORT": "Port"}
 

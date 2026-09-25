@@ -25,7 +25,7 @@
 ##   (dołączenie, AI, start partii) wysyła ogłoszenie od razu. Gra solo się nie ogłasza.
 extends Node
 
-const GameState := preload("res://autoload/GameStateManager.gd")
+const GameState := preload("res://scripts/autoload/GameStateManager.gd")
 
 ## Serwer wystartował (host LAN albo gra solo).
 signal server_started(port: int)

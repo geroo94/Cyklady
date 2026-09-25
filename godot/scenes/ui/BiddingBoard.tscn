@@ -1,7 +1,7 @@
 [gd_scene load_steps=3 format=3]
 
-[ext_resource type="Script" path="res://bidding/BiddingBoardUI.gd" id="1_ui"]
-[ext_resource type="Script" path="res://bidding/OfferingTrack.gd" id="2_track"]
+[ext_resource type="Script" path="res://scripts/ui/BiddingBoardUI.gd" id="1_ui"]
+[ext_resource type="Script" path="res://scripts/ui/OfferingTrack.gd" id="2_track"]
 
 [node name="BiddingBoard" type="PanelContainer"]
 offset_right = 420.0

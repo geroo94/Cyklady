@@ -1,7 +1,7 @@
 [gd_scene format=3]
 
-[ext_resource type="Script" path="res://board/board.gd" id="1_gn02v"]
-[ext_resource type="Script" path="res://board/TerritoryNode.gd" id="2_b6qkk"]
+[ext_resource type="Script" path="res://scripts/ui/board.gd" id="1_gn02v"]
+[ext_resource type="Script" path="res://scripts/ui/TerritoryNode.gd" id="2_b6qkk"]
 
 [node name="Board" type="Node2D" unique_id=315657026]
 script = ExtResource("1_gn02v")

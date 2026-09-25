@@ -1,4 +1,4 @@
-## Generator sceny planszy board/Board.tscn z mapy ArchipelagoMap.
+## Generator sceny planszy scenes/board/Board.tscn z mapy ArchipelagoMap.
 ##
 ##   godot --headless --path godot --script res://tools/build_board.gd
 ##
@@ -11,7 +11,7 @@
 ## położenie pól). Ponowne uruchomienie generatora nadpisuje te poprawki.
 extends SceneTree
 
-const OUTPUT := "res://board/Board.tscn"
+const OUTPUT := "res://scenes/board/Board.tscn"
 const INNER_RADIUS := 110.0
 const OUTER_RADIUS := 340.0
 const SECTOR_HALF_ANGLE := 36.0
