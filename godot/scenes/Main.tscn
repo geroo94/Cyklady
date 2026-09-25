@@ -1,0 +1,168 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scenes/main.gd" id="1_main"]
+[ext_resource type="PackedScene" path="res://scenes/LanLobby.tscn" id="2_lobby"]
+[ext_resource type="PackedScene" path="res://board/Board.tscn" id="3_board"]
+[ext_resource type="PackedScene" path="res://bidding/BiddingBoard.tscn" id="4_bidding"]
+
+[node name="Main" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_main")
+
+[node name="Margin" type="MarginContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 16
+theme_override_constants/margin_right = 16
+theme_override_constants/margin_bottom = 16
+
+[node name="Layout" type="VBoxContainer" parent="Margin"]
+layout_mode = 2
+
+[node name="Title" type="Label" parent="Margin/Layout"]
+layout_mode = 2
+text = "Cyklady – gra sieciowa (Godot 4, ENet)"
+
+[node name="Browser" parent="Margin/Layout" instance=ExtResource("2_lobby")]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="WaitingRoom" type="VBoxContainer" parent="Margin/Layout"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+
+[node name="WaitingLabel" type="Label" parent="Margin/Layout/WaitingRoom"]
+unique_name_in_owner = true
+layout_mode = 2
+autowrap_mode = 3
+text = "Poczekalnia: czekamy na graczy (3–5)."
+
+[node name="WaitingButtons" type="HBoxContainer" parent="Margin/Layout/WaitingRoom"]
+layout_mode = 2
+
+[node name="AddAiButton" type="Button" parent="Margin/Layout/WaitingRoom/WaitingButtons"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Dodaj AI"
+
+[node name="StartButton" type="Button" parent="Margin/Layout/WaitingRoom/WaitingButtons"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Start partii"
+
+[node name="WaitingLeaveButton" type="Button" parent="Margin/Layout/WaitingRoom/WaitingButtons"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Wyjdź"
+
+[node name="Game" type="HBoxContainer" parent="Margin/Layout"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+size_flags_vertical = 3
+size_flags_stretch_ratio = 3.0
+theme_override_constants/separation = 12
+
+[node name="MapView" type="SubViewportContainer" parent="Margin/Layout/Game"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(420, 360)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_stretch_ratio = 1.4
+stretch = true
+
+[node name="MapViewport" type="SubViewport" parent="Margin/Layout/Game/MapView"]
+transparent_bg = true
+physics_object_picking = true
+physics_object_picking_sort = true
+physics_object_picking_first_only = true
+size = Vector2i(420, 360)
+
+[node name="Board" parent="Margin/Layout/Game/MapView/MapViewport" instance=ExtResource("3_board")]
+unique_name_in_owner = true
+
+[node name="Side" type="VBoxContainer" parent="Margin/Layout/Game"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="StatusLabel" type="Label" parent="Margin/Layout/Game/Side"]
+unique_name_in_owner = true
+layout_mode = 2
+autowrap_mode = 3
+
+[node name="HintLabel" type="Label" parent="Margin/Layout/Game/Side"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 48)
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.93, 0.62, 1)
+autowrap_mode = 3
+text = "Najedź na pole planszy, żeby zobaczyć szczegóły."
+
+[node name="BiddingBoard" parent="Margin/Layout/Game/Side" instance=ExtResource("4_bidding")]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="MoveRow" type="HBoxContainer" parent="Margin/Layout/Game/Side"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="FromEdit" type="LineEdit" parent="Margin/Layout/Game/Side/MoveRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(110, 0)
+layout_mode = 2
+placeholder_text = "skąd (np. arch_n)"
+
+[node name="ToEdit" type="LineEdit" parent="Margin/Layout/Game/Side/MoveRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(110, 0)
+layout_mode = 2
+placeholder_text = "dokąd"
+
+[node name="CountSpin" type="SpinBox" parent="Margin/Layout/Game/Side/MoveRow"]
+unique_name_in_owner = true
+layout_mode = 2
+min_value = 1.0
+max_value = 20.0
+value = 1.0
+
+[node name="MoveButton" type="Button" parent="Margin/Layout/Game/Side/MoveRow"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Ruch"
+
+[node name="TurnRow" type="HBoxContainer" parent="Margin/Layout/Game/Side"]
+layout_mode = 2
+
+[node name="BuildButton" type="Button" parent="Margin/Layout/Game/Side/TurnRow"]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Podświetla wyspy, na których możesz postawić budynek boga, którego tura trwa. Kliknij wyspę, żeby budować."
+text = "Buduj…"
+
+[node name="EndTurnButton" type="Button" parent="Margin/Layout/Game/Side/TurnRow"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Koniec tury"
+
+[node name="LeaveButton" type="Button" parent="Margin/Layout/Game/Side/TurnRow"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Wyjdź z gry"
+
+[node name="Log" type="RichTextLabel" parent="Margin/Layout"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+bbcode_enabled = true
+scroll_following = true

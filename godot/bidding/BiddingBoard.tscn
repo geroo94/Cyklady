@@ -1,0 +1,173 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://bidding/BiddingBoardUI.gd" id="1_ui"]
+[ext_resource type="Script" path="res://bidding/OfferingTrack.gd" id="2_track"]
+
+[node name="BiddingBoard" type="PanelContainer"]
+offset_right = 420.0
+offset_bottom = 300.0
+script = ExtResource("1_ui")
+
+[node name="Content" type="VBoxContainer" parent="."]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="Banner" type="PanelContainer" parent="Content"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="BannerLabel" type="Label" parent="Content/Banner"]
+unique_name_in_owner = true
+layout_mode = 2
+autowrap_mode = 3
+text = "Licytacja"
+
+[node name="Tracks" type="VBoxContainer" parent="Content"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="PoseidonRow" type="HBoxContainer" parent="Content/Tracks"]
+layout_mode = 2
+
+[node name="GodButton" type="Button" parent="Content/Tracks/PoseidonRow"]
+custom_minimum_size = Vector2(92, 26)
+layout_mode = 2
+text = "Posejdon"
+
+[node name="Track" type="Control" parent="Content/Tracks/PoseidonRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+script = ExtResource("2_track")
+god_id = "POSEIDON"
+accent = Color(0.2392, 0.5608, 0.8196, 1)
+
+[node name="AresRow" type="HBoxContainer" parent="Content/Tracks"]
+layout_mode = 2
+
+[node name="GodButton" type="Button" parent="Content/Tracks/AresRow"]
+custom_minimum_size = Vector2(92, 26)
+layout_mode = 2
+text = "Ares"
+
+[node name="Track" type="Control" parent="Content/Tracks/AresRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+script = ExtResource("2_track")
+god_id = "ARES"
+accent = Color(0.8471, 0.3333, 0.2471, 1)
+
+[node name="ZeusRow" type="HBoxContainer" parent="Content/Tracks"]
+layout_mode = 2
+
+[node name="GodButton" type="Button" parent="Content/Tracks/ZeusRow"]
+custom_minimum_size = Vector2(92, 26)
+layout_mode = 2
+text = "Zeus"
+
+[node name="Track" type="Control" parent="Content/Tracks/ZeusRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+script = ExtResource("2_track")
+god_id = "ZEUS"
+accent = Color(0.8902, 0.7255, 0.2353, 1)
+
+[node name="AthenaRow" type="HBoxContainer" parent="Content/Tracks"]
+layout_mode = 2
+
+[node name="GodButton" type="Button" parent="Content/Tracks/AthenaRow"]
+custom_minimum_size = Vector2(92, 26)
+layout_mode = 2
+text = "Atena"
+
+[node name="Track" type="Control" parent="Content/Tracks/AthenaRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+script = ExtResource("2_track")
+god_id = "ATHENA"
+accent = Color(0.6392, 0.6941, 0.749, 1)
+
+[node name="HadesRow" type="HBoxContainer" parent="Content/Tracks"]
+layout_mode = 2
+
+[node name="GodButton" type="Button" parent="Content/Tracks/HadesRow"]
+custom_minimum_size = Vector2(92, 26)
+layout_mode = 2
+text = "Hades"
+
+[node name="Track" type="Control" parent="Content/Tracks/HadesRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+script = ExtResource("2_track")
+god_id = "HADES"
+accent = Color(0.6078, 0.349, 0.7137, 1)
+
+[node name="ApolloRow" type="HBoxContainer" parent="Content"]
+layout_mode = 2
+
+[node name="ApolloButton" type="Button" parent="Content/ApolloRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(92, 26)
+layout_mode = 2
+tooltip_text = "Apollo: za darmo, +1 JZ. Przyjmuje wielu graczy, a ich tury idą po turach bogów w kolejności przyjścia."
+text = "Apollo"
+
+[node name="ApolloQueue" type="HBoxContainer" parent="Content/ApolloRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="AmountRow" type="HBoxContainer" parent="Content"]
+layout_mode = 2
+
+[node name="AmountCaption" type="Label" parent="Content/AmountRow"]
+custom_minimum_size = Vector2(92, 0)
+layout_mode = 2
+text = "Kwota ofiary"
+
+[node name="AmountSlider" type="HSlider" parent="Content/AmountRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+min_value = 1.0
+max_value = 10.0
+value = 1.0
+rounded = true
+tick_count = 10
+ticks_on_borders = true
+
+[node name="AmountLabel" type="Label" parent="Content/AmountRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(48, 0)
+layout_mode = 2
+text = "1 JZ"
+horizontal_alignment = 2
+
+[node name="CostLabel" type="Label" parent="Content"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 20)
+layout_mode = 2
+autowrap_mode = 3
+
+[node name="ConfirmRow" type="HBoxContainer" parent="Content"]
+layout_mode = 2
+
+[node name="OfferButton" type="Button" parent="Content/ConfirmRow"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Złóż ofiarę"
+
+[node name="DisplacedTray" type="HBoxContainer" parent="Content/ConfirmRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(120, 26)
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="Overlay" type="Control" parent="."]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+
+[node name="DisplacedSound" type="AudioStreamPlayer" parent="."]
+unique_name_in_owner = true

@@ -1,0 +1,157 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://board/board.gd" id="1_gn02v"]
+[ext_resource type="Script" path="res://board/TerritoryNode.gd" id="2_b6qkk"]
+
+[node name="Board" type="Node2D" unique_id=315657026]
+script = ExtResource("1_gn02v")
+
+[node name="Seas" type="Node2D" parent="." unique_id=577904575]
+
+[node name="arch_center" type="Area2D" parent="Seas" unique_id=1915093310]
+position = Vector2(0, 72)
+script = ExtResource("2_b6qkk")
+territory_id = "arch_center"
+type = 1
+display_name = "Morze Centralne"
+adjacent_territories = Array[String](["arch_n", "arch_ne", "arch_se", "arch_sw", "arch_nw", "delos"])
+
+[node name="Shape" type="CollisionPolygon2D" parent="Seas/arch_center" unique_id=763644132]
+polygon = PackedVector2Array(105, -38, 102, -31, 99, -24, 95, -17, 91, -10, 87, -4, 82, 2, 76, 7, 71, 12, 65, 17, 58, 21, 52, 25, 45, 28, 38, 31, 30, 34, 23, 36, 15, 37, 8, 38, 0, 38, -8, 38, -15, 37, -23, 36, -30, 34, -38, 31, -45, 28, -52, 25, -58, 21, -65, 17, -71, 12, -76, 7, -82, 2, -87, -4, -91, -10, -95, -17, -99, -24, -102, -31, -105, -38, -107, -45, -108, -53, -109, -61, -110, -68, -110, -76, -109, -83, -108, -91, -107, -99, -105, -106, -102, -113, -99, -120, -95, -127, -91, -134, -87, -140, -82, -146, -76, -151, -71, -156, -65, -161, -58, -165, -52, -169, -45, -172, -38, -175, -30, -178, -23, -180, -15, -181, -8, -182, 0, -182, 8, -182, 15, -181, 23, -180, 30, -178, 38, -175, 45, -172, 52, -169, 58, -165, 65, -161, 71, -156, 76, -151, 82, -146, 87, -140, 91, -134, 95, -127, 99, -120, 102, -113, 105, -106, 107, -99, 108, -91, 109, -83, 110, -76, 110, -68, 109, -61, 108, -53, 107, -45)
+
+[node name="arch_n" type="Area2D" parent="Seas" unique_id=1670241213]
+position = Vector2(0, -165)
+script = ExtResource("2_b6qkk")
+territory_id = "arch_n"
+type = 1
+display_name = "Morze Pn."
+adjacent_territories = Array[String](["arch_center", "arch_ne", "arch_nw", "andros", "syros"])
+
+[node name="Shape" type="CollisionPolygon2D" parent="Seas/arch_n" unique_id=221895998]
+polygon = PackedVector2Array(-200, -110, -180, -123, -160, -135, -138, -146, -116, -154, -94, -162, -71, -168, -47, -172, -24, -174, 0, -175, 24, -174, 47, -172, 71, -168, 94, -162, 116, -154, 138, -146, 160, -135, 180, -123, 200, -110, 65, 76, 58, 72, 52, 68, 45, 65, 38, 62, 30, 59, 23, 57, 15, 56, 8, 55, 0, 55, -8, 55, -15, 56, -23, 57, -30, 59, -38, 62, -45, 65, -52, 68, -58, 72, -65, 76)
+
+[node name="arch_ne" type="Area2D" parent="Seas" unique_id=1070776194]
+position = Vector2(157, -51)
+script = ExtResource("2_b6qkk")
+territory_id = "arch_ne"
+type = 1
+display_name = "Morze Pn-Wsch."
+adjacent_territories = Array[String](["arch_center", "arch_n", "arch_se", "mykonos", "paros"])
+
+[node name="Shape" type="CollisionPolygon2D" parent="Seas/arch_ne" unique_id=6884028]
+polygon = PackedVector2Array(43, -224, 62, -209, 79, -194, 96, -177, 111, -158, 125, -139, 137, -119, 149, -98, 158, -76, 166, -54, 173, -31, 178, -8, 181, 15, 183, 39, 183, 63, 181, 87, 178, 110, 173, 133, 166, 156, -52, 85, -50, 78, -49, 70, -48, 62, -47, 55, -47, 47, -48, 40, -49, 32, -50, 24, -52, 17, -55, 10, -58, 3, -62, -4, -66, -11, -70, -17, -75, -23, -81, -28, -86, -33, -92, -38)
+
+[node name="arch_se" type="Area2D" parent="Seas" unique_id=1136411161]
+position = Vector2(97, 133)
+script = ExtResource("2_b6qkk")
+territory_id = "arch_se"
+type = 1
+display_name = "Morze Pd-Wsch."
+adjacent_territories = Array[String](["arch_center", "arch_ne", "arch_sw", "naxos", "paros"])
+
+[node name="Shape" type="CollisionPolygon2D" parent="Seas/arch_se" unique_id=1501374049]
+polygon = PackedVector2Array(226, -28, 218, -6, 209, 16, 197, 37, 185, 57, 171, 76, 156, 95, 139, 112, 122, 127, 103, 142, 83, 155, 63, 167, 41, 178, 19, 186, -3, 194, -26, 200, -50, 204, -73, 206, -97, 207, -97, -23, -89, -23, -82, -24, -74, -25, -67, -27, -59, -30, -52, -33, -45, -36, -39, -40, -32, -44, -26, -49, -21, -54, -15, -59, -10, -65, -6, -71, -2, -78, 2, -85, 5, -92, 8, -99)
+
+[node name="arch_sw" type="Area2D" parent="Seas" unique_id=1342647130]
+position = Vector2(-97, 133)
+script = ExtResource("2_b6qkk")
+territory_id = "arch_sw"
+type = 1
+display_name = "Morze Pd-Zach."
+adjacent_territories = Array[String](["arch_center", "arch_se", "arch_nw", "milos"])
+
+[node name="Shape" type="CollisionPolygon2D" parent="Seas/arch_sw" unique_id=1662395978]
+polygon = PackedVector2Array(97, 207, 73, 206, 50, 204, 26, 200, 3, 194, -19, 186, -41, 178, -63, 167, -83, 155, -103, 142, -122, 127, -139, 112, -156, 95, -171, 76, -185, 57, -197, 37, -209, 16, -218, -6, -226, -28, -8, -99, -5, -92, -2, -85, 2, -78, 6, -71, 10, -65, 15, -59, 21, -54, 26, -49, 32, -44, 39, -40, 45, -36, 52, -33, 59, -30, 67, -27, 74, -25, 82, -24, 89, -23, 97, -23)
+
+[node name="arch_nw" type="Area2D" parent="Seas" unique_id=1593534477]
+position = Vector2(-157, -51)
+script = ExtResource("2_b6qkk")
+territory_id = "arch_nw"
+type = 1
+display_name = "Morze Pn-Zach."
+adjacent_territories = Array[String](["arch_center", "arch_sw", "arch_n", "kea", "syros"])
+
+[node name="Shape" type="CollisionPolygon2D" parent="Seas/arch_nw" unique_id=1600982126]
+polygon = PackedVector2Array(-166, 156, -173, 133, -178, 110, -181, 87, -183, 63, -183, 39, -181, 15, -178, -8, -173, -31, -166, -54, -158, -76, -149, -98, -137, -119, -125, -139, -111, -158, -96, -177, -79, -194, -62, -209, -43, -224, 92, -38, 86, -33, 81, -28, 75, -23, 70, -17, 66, -11, 62, -4, 58, 3, 55, 10, 52, 17, 50, 24, 49, 32, 48, 40, 47, 47, 47, 55, 48, 62, 49, 70, 50, 78, 52, 85)
+
+[node name="Islands" type="Node2D" parent="." unique_id=363655446]
+z_index = 1
+
+[node name="andros" type="Area2D" parent="Islands" unique_id=1326058533]
+position = Vector2(0, -260)
+script = ExtResource("2_b6qkk")
+territory_id = "andros"
+display_name = "Andros"
+adjacent_territories = Array[String](["arch_n"])
+
+[node name="Shape" type="CollisionPolygon2D" parent="Islands/andros" unique_id=109708087]
+polygon = PackedVector2Array(47, 0, 41, 15, 30, 25, 18, 31, 6, 37, -7, 42, -24, 42, -33, 28, -35, 13, -33, 0, -34, -12, -31, -26, -24, -42, -8, -46, 7, -38, 17, -29, 26, -22, 40, -15)
+
+[node name="mykonos" type="Area2D" parent="Islands" unique_id=1673807306]
+position = Vector2(247, -80)
+script = ExtResource("2_b6qkk")
+territory_id = "mykonos"
+display_name = "Mykonos"
+adjacent_territories = Array[String](["arch_ne"])
+
+[node name="Shape" type="CollisionPolygon2D" parent="Islands/mykonos" unique_id=1634389597]
+polygon = PackedVector2Array(43, 0, 35, 12, 26, 22, 17, 29, 7, 38, -8, 45, -22, 37, -30, 25, -32, 11, -36, 0, -39, -15, -36, -31, -21, -38, -6, -37, 6, -32, 19, -32, 30, -26, 45, -17)
+
+[node name="naxos" type="Area2D" parent="Islands" unique_id=124612283]
+position = Vector2(153, 210)
+script = ExtResource("2_b6qkk")
+territory_id = "naxos"
+display_name = "Naxos"
+adjacent_territories = Array[String](["arch_se"])
+
+[node name="Shape" type="CollisionPolygon2D" parent="Islands/naxos" unique_id=332252980]
+polygon = PackedVector2Array(35, 0, 38, 14, 35, 30, 25, 43, 8, 45, -7, 40, -19, 33, -31, 26, -43, 16, -49, 0, -46, -16, -32, -26, -19, -32, -7, -39, 8, -48, 24, -42, 38, -31, 36, -13)
+
+[node name="milos" type="Area2D" parent="Islands" unique_id=403673718]
+position = Vector2(-153, 210)
+script = ExtResource("2_b6qkk")
+territory_id = "milos"
+display_name = "Milos"
+adjacent_territories = Array[String](["arch_sw"])
+
+[node name="Shape" type="CollisionPolygon2D" parent="Islands/milos" unique_id=2060850697]
+polygon = PackedVector2Array(42, 0, 34, 13, 28, 23, 21, 37, 8, 46, -8, 46, -20, 35, -26, 23, -31, 12, -41, 0, -41, -15, -33, -27, -20, -35, -6, -36, 6, -33, 19, -32, 35, -29, 45, -16)
+
+[node name="kea" type="Area2D" parent="Islands" unique_id=1421076347]
+position = Vector2(-247, -80)
+script = ExtResource("2_b6qkk")
+territory_id = "kea"
+display_name = "Kea"
+adjacent_territories = Array[String](["arch_nw"])
+
+[node name="Shape" type="CollisionPolygon2D" parent="Islands/kea" unique_id=1577876438]
+polygon = PackedVector2Array(39, 0, 34, 12, 24, 20, 17, 30, 7, 42, -8, 42, -20, 33, -26, 21, -31, 11, -37, 0, -41, -15, -35, -29, -21, -36, -7, -37, 6, -33, 17, -30, 32, -28, 41, -15)
+
+[node name="delos" type="Area2D" parent="Islands" unique_id=165104088]
+script = ExtResource("2_b6qkk")
+territory_id = "delos"
+display_name = "Delos"
+adjacent_territories = Array[String](["arch_center"])
+
+[node name="Shape" type="CollisionPolygon2D" parent="Islands/delos" unique_id=1507714751]
+polygon = PackedVector2Array(36, 0, 37, 13, 29, 24, 18, 31, 6, 32, -5, 31, -19, 33, -32, 27, -38, 14, -35, 0, -28, -10, -24, -20, -19, -33, -7, -42, 7, -40, 18, -31, 25, -21, 29, -11)
+
+[node name="syros" type="Area2D" parent="Islands" unique_id=807944057]
+position = Vector2(-172, -236)
+script = ExtResource("2_b6qkk")
+territory_id = "syros"
+display_name = "Syros"
+adjacent_territories = Array[String](["arch_n", "arch_nw"])
+
+[node name="Shape" type="CollisionPolygon2D" parent="Islands/syros" unique_id=304035571]
+polygon = PackedVector2Array(36, 0, 30, 11, 23, 19, 19, 32, 7, 40, -7, 42, -18, 31, -24, 20, -30, 11, -38, 0, -36, -14, -30, -26, -17, -31, -5, -29, 6, -32, 20, -34, 33, -27, 36, -13)
+
+[node name="paros" type="Area2D" parent="Islands" unique_id=1267323471]
+position = Vector2(278, 90)
+script = ExtResource("2_b6qkk")
+territory_id = "paros"
+display_name = "Paros"
+adjacent_territories = Array[String](["arch_ne", "arch_se"])
+
+[node name="Shape" type="CollisionPolygon2D" parent="Islands/paros" unique_id=1214054808]
+polygon = PackedVector2Array(39, 0, 34, 13, 26, 22, 14, 25, 5, 31, -6, 34, -20, 34, -29, 24, -31, 12, -29, 0, -28, -10, -29, -24, -20, -35, -6, -35, 6, -33, 14, -25, 22, -19, 34, -12)

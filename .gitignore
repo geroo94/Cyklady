@@ -1,0 +1,19 @@
+# Node.js: zależności (npm install) i logi npm
+node_modules/
+npm-debug.log*
+
+# Godot: pamięć podręczna importu i edytora (odtwarzana przy otwarciu projektu).
+# Pliki *.uid przy skryptach i shaderach NALEŻĄ do repozytorium.
+.godot/
+godot/.godot/
+# Godot: szablon eksportu na Androida (instalowany z edytora)
+godot/android/
+
+# Pliki systemowe i tymczasowe
+.DS_Store
+._*
+Thumbs.db
+desktop.ini
+*.tmp
+*.swp
+*~

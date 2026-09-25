@@ -1,0 +1,96 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scenes/lan_lobby.gd" id="1_lobby"]
+[ext_resource type="Script" path="res://lan/LanListener.gd" id="2_listener"]
+
+[node name="LanLobby" type="VBoxContainer"]
+script = ExtResource("1_lobby")
+
+[node name="LanListener" type="Node" parent="."]
+script = ExtResource("2_listener")
+
+[node name="Title" type="Label" parent="."]
+layout_mode = 2
+text = "Gry w sieci lokalnej"
+
+[node name="NameRow" type="HBoxContainer" parent="."]
+layout_mode = 2
+
+[node name="NameLabel" type="Label" parent="NameRow"]
+layout_mode = 2
+text = "Twoje imię:"
+
+[node name="NameEdit" type="LineEdit" parent="NameRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "np. Ariadna"
+
+[node name="ServerList" type="ItemList" parent="."]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 160)
+layout_mode = 2
+
+[node name="SearchLabel" type="Label" parent="."]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Szukam gier w sieci lokalnej…"
+
+[node name="JoinButton" type="Button" parent="."]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 0
+disabled = true
+text = "Dołącz do wybranej gry"
+
+[node name="Separator" type="HSeparator" parent="."]
+layout_mode = 2
+
+[node name="CreateRow" type="HBoxContainer" parent="."]
+layout_mode = 2
+
+[node name="ServerNameEdit" type="LineEdit" parent="CreateRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "Nazwa gry (np. Archipelag)"
+
+[node name="HadesCheck" type="CheckBox" parent="CreateRow"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Hades"
+
+[node name="MonumentsCheck" type="CheckBox" parent="CreateRow"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Monumenty"
+
+[node name="CreateButton" type="Button" parent="CreateRow"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Stwórz Grę LAN"
+
+[node name="DirectRow" type="HBoxContainer" parent="."]
+layout_mode = 2
+
+[node name="AddressEdit" type="LineEdit" parent="DirectRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "IP[:port], np. 192.168.1.20:8910"
+
+[node name="DirectButton" type="Button" parent="DirectRow"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Połącz przez IP"
+
+[node name="SingleButton" type="Button" parent="."]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 0
+text = "Gra solo z AI"
+
+[node name="StatusLabel" type="Label" parent="."]
+unique_name_in_owner = true
+layout_mode = 2
+autowrap_mode = 3
