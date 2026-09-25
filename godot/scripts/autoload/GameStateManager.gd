@@ -20,9 +20,13 @@
 ## Stan to Dictionary z typami JSON (String, int, bool, Array, Dictionary),
 ## więc przechodzi przez RPC bez przesyłania obiektów.
 ##
-## Uproszczenia względem pełnych zasad: bez stworów, herosów, rekrutacji,
-## kapłanów do kupienia, Metropolii i warunku zwycięstwa. Bitwa toczy się do
-## rozstrzygnięcia, bez odwrotów.
+## Tury bogów: ruch, budowa, rekrutacja (RecruitRules), zakup stworów i akcja Zeusa
+## (CreatureRules). Po każdej zmianie działają efekty stanowe: komplet budynków albo
+## czterech filozofów zamienia się w Metropolię. Na koniec cyklu wygrywa gracz
+## z 2 Metropoliami (remis: więcej złota).
+##
+## Uproszczenia względem pełnych zasad: bez herosów, tury Hadesa i Monumentów, Apollo
+## daje zawsze 1 JZ, a bitwa toczy się do rozstrzygnięcia, bez odwrotów.
 extends Node
 
 ## Wszyscy: nowa projekcja stanu dla lokalnego gracza (rysuje ją UI).
@@ -58,11 +62,18 @@ const BUILD_COST := MoveRules.BUILD_COST
 const FLEET_RANGE := MoveRules.FLEET_RANGE
 const MAX_BID := BidRules.MAX_BID
 const COLORS := ["BLUE", "RED", "GREEN", "YELLOW", "BLACK"]
+## Komplet różnych budynków, który od razu zamienia się w Metropolię.
+const METROPOLIS_BUILDINGS := ["PORT", "FORTRESS", "TEMPLE", "UNIVERSITY"]
+## Tylu filozofów od razu zamienia się w Metropolię.
+const PHILOSOPHERS_PER_METROPOLIS := 4
+const METROPOLISES_TO_WIN := MoveRules.METROPOLISES_TO_WIN
 ## Tyle ostatnich zdarzeń trzyma dziennik partii w stanie (dla UI).
 const LOG_SIZE := 30
 
 ## Mapa „Archipelag” (sąsiedztwo pól, miasta startowe). Wspólna dla reguł i planszy.
 const MAP := ArchipelagoMap.MAP
+## Baza treści (talia stworów). Preload zamiast autoloadu, więc działa też w testach i narzędziach.
+const Data := preload("res://scripts/autoload/GameData.gd")
 
 ## Wszyscy: projekcja stanu dla lokalnego gracza (pusta poza partią).
 var view: Dictionary = {}
@@ -141,6 +152,16 @@ func start_new_game(players: Array, expansions: Dictionary = {}) -> Dictionary:
 		"bidding": {"queue": [], "displaced": "", "forbidden": ""},
 		"turns": [],
 		"turn_index": 0,
+		# Zakupy w bieżącej turze boga (liczniki rekrutacji), zob. _turn_progress.
+		"turn_progress": {},
+		# Zwycięzcy po końcu gry (faza GAME_OVER).
+		"winners": [],
+		# Tor stworów: pole 0 za 2 JZ (najstarsza karta), 1 za 3 JZ, 2 za 4 JZ. Talia jest zakryta
+		# (projekcja podaje tylko jej rozmiar), a stos odrzuconych odkryty.
+		"creatures": {"slots": ["", "", ""], "deck": [], "discard": []},
+		# Figurki stworów: pole morskie z Krakenem i Minotaur { "island", "player" }.
+		"kraken": "",
+		"minotaur": {},
 		"log": [],
 		"log_seq": 0,
 	}
@@ -158,6 +179,7 @@ func start_new_game(players: Array, expansions: Dictionary = {}) -> Dictionary:
 			"color": COLORS[i],
 			"gold": STARTING_GOLD,
 			"priests": 0,
+			"philosophers": 0,
 			"is_ai": bool(entry.get("is_ai", false)),
 			"connected": true,
 			"reconnect_deadline": 0.0,
@@ -166,6 +188,8 @@ func start_new_game(players: Array, expansions: Dictionary = {}) -> Dictionary:
 		state["islands"][city[0]] = _island(id, STARTING_TROOPS)
 		state["seas"][city[1]] = _sea(id, STARTING_FLEETS)
 	_state = state
+	# Talia stworów podstawki. Herosi (Hades) trafią do niej razem z obsługą Hadesa w Godot.
+	state["creatures"]["deck"] = _shuffled(Array(Data.myth_deck({})))
 	_begin_cycle(_shuffled(state["seating"]))
 	_commit()
 	return _ok()
@@ -236,25 +260,12 @@ func apply_move(player_id: String, from_id: String, to_id: String, count: int) -
 		return _fail("NO_FLEET_BRIDGE", "Między %s a %s nie ma łańcucha twoich flot." % [from_id, to_id])
 	if sea and MoveRules.fleet_distance(_state, player_id, from_id, to_id) < 0:
 		return _fail("OUT_OF_RANGE", "Flota płynie najwyżej %d pola morskie i nie mija obcych flot." % FLEET_RANGE)
-	var target: Dictionary = nodes[to_id]
-	var holder := String(target["owner"])
-	var hostile: bool = holder != "" and holder != player_id
-	if land and hostile and MoveRules.islands_of(_state, holder) == 1:
-		return _fail("LAST_ISLAND_PROTECTED", "Nie można zająć ostatniej wyspy gracza %s." % _name(holder))
+	if land and MoveRules.last_island_protected(_state, player_id, to_id):
+		return _fail("LAST_ISLAND_PROTECTED", "Nie można zająć ostatniej wyspy gracza %s." % _name(String(nodes[to_id]["owner"])))
 
 	# Walidacja zakończona: zmiana stanu.
 	player["gold"] = int(player["gold"]) - MOVE_COST
-	origin[unit_key] = int(origin[unit_key]) - count
-	if sea and MoveRules.units_on(_state, from_id) == 0:
-		origin["owner"] = ""  # puste morze nie ma właściciela; wyspa bez wojsk zostaje przy graczu
-	_log({"type": "MOVE", "player": player_id, "from": from_id, "to": to_id, "count": count})
-	if hostile and MoveRules.units_on(_state, to_id) > 0:
-		_resolve_battle("LAND" if land else "SEA", to_id, player_id, count)
-	elif target["owner"] == player_id:
-		target[unit_key] = int(target[unit_key]) + count
-	else:
-		target["owner"] = player_id
-		target[unit_key] = count
+	_execute_move(land, player_id, from_id, to_id, count)
 	_commit()
 	return _ok()
 
@@ -285,6 +296,77 @@ func apply_build(player_id: String, island_id: String) -> Dictionary:
 	return _ok()
 
 
+## Rekrutacja w turze boga: oddział (Ares) na własnej wyspie, flota (Posejdon) przy własnej
+## wyspie, kapłan (Zeus) albo filozof (Atena). Jedno wywołanie to jedna sztuka. Walidacja
+## i koszt to RecruitRules: te same funkcje może wywołać UI przed wysłaniem RPC.
+func apply_recruit(player_id: String, kind: String, target_id: String) -> Dictionary:
+	var code := RecruitRules.recruit_error(_state, player_id, kind, target_id)
+	if code != "":
+		return _fail(code, _recruit_error_message(code, player_id, kind, target_id))
+
+	# Walidacja zakończona: zmiana stanu.
+	var cost := RecruitRules.next_cost(_state, kind)
+	var player: Dictionary = _state["players"][player_id]
+	player["gold"] = int(player["gold"]) - cost
+	match kind:
+		"TROOP":
+			var island: Dictionary = _state["islands"][target_id]
+			island["troops"] = int(island["troops"]) + 1
+		"FLEET":
+			var sea: Dictionary = _state["seas"][target_id]
+			sea["owner"] = player_id
+			sea["fleets"] = int(sea["fleets"]) + 1
+		"PRIEST":
+			player["priests"] = int(player["priests"]) + 1
+		"PHILOSOPHER":
+			player["philosophers"] = int(player["philosophers"]) + 1
+	var recruited: Dictionary = _turn_progress()["recruited"]
+	recruited[kind] = int(recruited.get(kind, 0)) + 1
+	_log({"type": "RECRUIT", "player": player_id, "kind": kind, "target": target_id, "cost": cost})
+	_commit()
+	return _ok()
+
+
+## Zakup stwora z pola toru `slot` w turze dowolnego boga. Moc działa od razu na cel z `params`
+## (opis celów w CreatureRules). Walidacja i cena to CreatureRules, te same funkcje co w UI.
+func apply_buy_creature(player_id: String, slot: int, params: Dictionary) -> Dictionary:
+	var code := CreatureRules.buy_error(_state, player_id, slot, params)
+	if code != "":
+		return _fail(code, _creature_error_message(code, player_id, CreatureRules.total_cost(_state, player_id, slot, params)))
+
+	# Walidacja zakończona: zmiana stanu.
+	var cost := CreatureRules.total_cost(_state, player_id, slot, params)
+	var discounted := CreatureRules.discount_available(_state, player_id) and CreatureRules.temples_of(_state, player_id) > 0
+	var creatures: Dictionary = _state["creatures"]
+	var key := String(creatures["slots"][slot])
+	creatures["slots"][slot] = ""
+	creatures["discard"].append(key)
+	var player: Dictionary = _state["players"][player_id]
+	player["gold"] = int(player["gold"]) - cost
+	if discounted:
+		_turn_progress()["discount_used"] = true
+	_log({"type": "CREATURE", "player": player_id, "creature": key, "cost": cost})
+	_apply_creature(key, player_id, params)
+	_commit()
+	return _ok()
+
+
+## Akcja specjalna Zeusa: za 1 JZ karta z pola `slot` idzie na stos, a jej miejsce zajmuje wierzch talii.
+func apply_swap_creature(player_id: String, slot: int) -> Dictionary:
+	var code := CreatureRules.swap_error(_state, player_id, slot)
+	if code != "":
+		return _fail(code, _creature_error_message(code, player_id, CreatureRules.SWAP_COST))
+	var creatures: Dictionary = _state["creatures"]
+	var discarded := String(creatures["slots"][slot])
+	creatures["discard"].append(discarded)
+	creatures["slots"][slot] = _draw_creature()
+	var player: Dictionary = _state["players"][player_id]
+	player["gold"] = int(player["gold"]) - CreatureRules.SWAP_COST
+	_log({"type": "SWAP_CREATURE", "player": player_id, "discarded": discarded, "drawn": creatures["slots"][slot]})
+	_commit()
+	return _ok()
+
+
 ## Koniec tury boga. Po ostatniej turze zaczyna się nowy cykl.
 func apply_end_turn(player_id: String) -> Dictionary:
 	var error := _god_turn_error(player_id)
@@ -293,11 +375,19 @@ func apply_end_turn(player_id: String) -> Dictionary:
 	_log({"type": "END_TURN", "player": player_id})
 	_state["turn_index"] = int(_state["turn_index"]) + 1
 	if _state["turn_index"] >= _state["turns"].size():
-		# Kolejność licytacji w następnym cyklu to kolejność tur w tym cyklu.
-		var order: Array = []
-		for turn in _state["turns"]:
-			order.append(turn["player"])
-		_begin_cycle(order)
+		var winners := _winners()
+		if not winners.is_empty():
+			_state["phase"] = "GAME_OVER"
+			_state["winners"] = winners
+			_log({"type": "GAME_OVER", "winners": winners.duplicate()})
+		else:
+			# Kolejność licytacji w następnym cyklu to kolejność tur w tym cyklu.
+			var order: Array = []
+			for turn in _state["turns"]:
+				order.append(turn["player"])
+			_begin_cycle(order)
+	else:
+		_on_turn_started()
 	_commit()
 	return _ok()
 
@@ -329,12 +419,17 @@ func set_player_ai(player_id: String) -> void:
 	_commit()
 
 
-## Projekcja stanu dla gracza: złoto rywali jest tajne (-1), reszta planszy jest jawna.
+## Projekcja stanu dla gracza: złoto rywali jest tajne (-1), a z talii stworów widać tylko liczbę
+## kart (kolejność zna wyłącznie serwer). Reszta planszy i tor stworów są jawne.
 func project_for(player_id: String) -> Dictionary:
 	var projected := _state.duplicate(true)
 	for id in projected["players"]:
 		if id != player_id:
 			projected["players"][id]["gold"] = -1
+	var creatures: Dictionary = projected.get("creatures", {})
+	if creatures.has("deck"):
+		creatures["deck_size"] = creatures["deck"].size()
+		creatures.erase("deck")
 	projected["you"] = player_id
 	return projected
 
@@ -372,8 +467,9 @@ func reset() -> void:
 # Reguły (pomocnicze)
 # =============================================================================
 
-## Nowy cykl: dochód (od drugiego cyklu), odkrycie bogów i licytacja w podanej kolejności.
+## Nowy cykl: tor stworów, dochód (od drugiego cyklu), odkrycie bogów i licytacja w podanej kolejności.
 func _begin_cycle(order: Array) -> void:
+	_refresh_creatures()
 	_state["cycle"] = int(_state["cycle"]) + 1
 	if _state["cycle"] > 1:
 		for player_id in _state["seating"]:
@@ -423,11 +519,99 @@ func _settle_bidding() -> void:
 	_state["turn_index"] = 0
 	_state["phase"] = "ACTIONS"
 	_log({"type": "BIDDING_CLOSED", "turns": turns.duplicate(true)})
+	_on_turn_started()
+
+
+## Tor stworów na początku cyklu (jak refreshCreatureMarket w TS): karta z pola za 2 JZ idzie na
+## stos, pozostałe zsuwają się w stronę tańszych pól, a wolne pola od strony 4 JZ uzupełnia talia.
+func _refresh_creatures() -> void:
+	var creatures: Dictionary = _state["creatures"]
+	var slots: Array = creatures["slots"]
+	if slots[0] != "":
+		creatures["discard"].append(slots[0])
+	var remaining: Array = slots.slice(1).filter(func(key: String) -> bool: return key != "")
+	while remaining.size() < slots.size():
+		remaining.append(_draw_creature())
+	creatures["slots"] = remaining
+
+
+## Wierzch talii stworów. Pusta talia: stos odrzuconych zostaje przetasowany i staje się talią.
+## Gdy nie ma żadnych kart, pole zostaje puste.
+func _draw_creature() -> String:
+	var creatures: Dictionary = _state["creatures"]
+	if creatures["deck"].is_empty() and not creatures["discard"].is_empty():
+		creatures["deck"] = _shuffled(creatures["discard"])
+		creatures["discard"] = []
+	return String(creatures["deck"].pop_front()) if not creatures["deck"].is_empty() else ""
+
+
+## Moc kupionego stwora na cel sprawdzony wcześniej przez CreatureRules.effect_error.
+func _apply_creature(key: String, player_id: String, params: Dictionary) -> void:
+	match key:
+		"GIANT":
+			var island: Dictionary = _state["islands"][params["island"]]
+			island["buildings"].erase(params["building"])
+			_log({"type": "GIANT", "player": player_id, "island": params["island"], "building": params["building"]})
+		"HARPY":
+			var island: Dictionary = _state["islands"][params["island"]]
+			island["troops"] = int(island["troops"]) - 1
+			_log({"type": "HARPY", "player": player_id, "island": params["island"]})
+		"PEGASUS":
+			_execute_move(true, player_id, params["from"], params["to"], int(params["count"]), "PEGASUS")
+		"KRAKEN":
+			var route: Array = [params["sea"]]
+			route.append_array(params.get("path", []))
+			var destroyed: Array = []
+			for sea_id in route:
+				var sea: Dictionary = _state["seas"][sea_id]
+				var lost := int(sea["fleets"]) + int(sea.get("undead_fleets", 0))
+				if lost > 0:
+					destroyed.append({"sea": sea_id, "player": sea["owner"], "fleets": lost})
+				_state["seas"][sea_id] = _sea("", 0)
+			_state["kraken"] = route.back()
+			_log({"type": "KRAKEN", "player": player_id, "sea": route.back(), "destroyed": destroyed})
+		"MINOTAUR":
+			_state["minotaur"] = {"island": params["island"], "player": player_id}
+			_log({"type": "MINOTAUR", "player": player_id, "island": params["island"]})
+
+
+## Ruch po walidacji: jednostki schodzą z pola startowego, a wejście na pole z jednostkami rywala
+## (także z samym Minotaurem) to bitwa. Ruch Aresa i Posejdona oraz przerzut Pegaza (`via`).
+func _execute_move(land: bool, player_id: String, from_id: String, to_id: String, count: int, via: String = "") -> void:
+	var nodes: Dictionary = _state["islands"] if land else _state["seas"]
+	var unit_key := "troops" if land else "fleets"
+	var origin: Dictionary = nodes[from_id]
+	var target: Dictionary = nodes[to_id]
+	var holder := String(target["owner"])
+	var hostile := holder != "" and holder != player_id
+	origin[unit_key] = int(origin[unit_key]) - count
+	if not land and MoveRules.units_on(_state, from_id) == 0:
+		origin["owner"] = ""  # puste morze nie ma właściciela; wyspa bez wojsk zostaje przy graczu
+	var event := {"type": "MOVE", "player": player_id, "from": from_id, "to": to_id, "count": count}
+	if via != "":
+		event["via"] = via
+	_log(event)
+	if hostile and MoveRules.units_on(_state, to_id) > 0:
+		_resolve_battle("LAND" if land else "SEA", to_id, player_id, count)
+	elif target["owner"] == player_id:
+		target[unit_key] = int(target[unit_key]) + count
+	else:
+		target["owner"] = player_id
+		target[unit_key] = count
+
+
+## Początek tury boga. Minotaur działa „do początku następnej tury” kupującego, więc wtedy znika.
+func _on_turn_started() -> void:
+	var minotaur: Dictionary = _state.get("minotaur", {})
+	if not minotaur.is_empty() and minotaur["player"] == current_actor():
+		_state["minotaur"] = {}
+		_log({"type": "MINOTAUR_GONE", "player": minotaur["player"], "island": minotaur["island"]})
 
 
 ## Bitwa do rozstrzygnięcia (bez odwrotów): runda po rundzie, aż jedna strona zniknie.
 ## Wynik rundy: rzut + jednostki + modyfikatory. Niższy wynik traci jednostkę, remis: obie strony.
-## Nieumarli obrońcy (Hades) walczą razem z jednostkami gracza i giną jako pierwsi.
+## Nieumarli obrońcy (Hades) walczą razem z jednostkami gracza i giną jako pierwsi. Minotaur
+## liczy się jak MoveRules.MINOTAUR_STRENGTH oddziały obrońcy i ginie dopiero po oddziałach.
 func _resolve_battle(kind: String, node_id: String, attacker: String, attacking: int) -> void:
 	var node: Dictionary = _state["islands"][node_id] if kind == "LAND" else _state["seas"][node_id]
 	var unit_key := "troops" if kind == "LAND" else "fleets"
@@ -435,16 +619,20 @@ func _resolve_battle(kind: String, node_id: String, attacker: String, attacking:
 	var defender := String(node["owner"])
 	var defending := int(node[unit_key])
 	var undead := int(node.get(undead_key, 0))
+	var guarded: bool = kind == "LAND" and _state.get("minotaur", {}).get("island", "") == node_id
+	var minotaur := MoveRules.MINOTAUR_STRENGTH if guarded else 0
 	var modifiers := _defense_modifiers(kind, node_id, defender)
 	var bonus := 0
 	for modifier in modifiers:
 		bonus += int(modifier["value"])
 	var rounds: Array = []
-	while attacking > 0 and defending + undead > 0:
+	while attacking > 0 and defending + undead + minotaur > 0:
 		var a := {"roll": roll_die(), "units": attacking, "modifiers": []}
-		var d := {"roll": roll_die(), "units": defending + undead, "undead": undead, "modifiers": modifiers.duplicate(true)}
+		var d := {"roll": roll_die(), "units": defending + undead + minotaur, "undead": undead, "modifiers": modifiers.duplicate(true)}
+		if minotaur > 0:
+			d["minotaur"] = minotaur
 		a["total"] = int(a["roll"]) + attacking
-		d["total"] = int(d["roll"]) + defending + undead + bonus
+		d["total"] = int(d["roll"]) + defending + undead + minotaur + bonus
 		a["loss"] = a["total"] <= d["total"]
 		d["loss"] = d["total"] <= a["total"]
 		if a["loss"]:
@@ -452,8 +640,10 @@ func _resolve_battle(kind: String, node_id: String, attacker: String, attacking:
 		if d["loss"]:
 			if undead > 0:
 				undead -= 1
-			else:
+			elif defending > 0:
 				defending -= 1
+			else:
+				minotaur = 0
 		rounds.append({"round": rounds.size() + 1, "attacker": a, "defender": d})
 
 	var outcome := "MUTUAL_DESTRUCTION"
@@ -462,7 +652,7 @@ func _resolve_battle(kind: String, node_id: String, attacker: String, attacking:
 		node["owner"] = attacker
 		node[unit_key] = attacking
 		node[undead_key] = 0
-	elif defending + undead > 0:
+	elif defending + undead + minotaur > 0:
 		outcome = "DEFENDER_WON"
 		node[unit_key] = defending
 		node[undead_key] = undead
@@ -471,6 +661,8 @@ func _resolve_battle(kind: String, node_id: String, attacker: String, attacking:
 		node[undead_key] = 0
 		if kind == "SEA":
 			node["owner"] = ""  # wyspa bez wojsk zostaje przy obrońcy, puste morze nie
+	if guarded and minotaur == 0:
+		_state["minotaur"] = {}  # pokonany Minotaur znika z planszy
 	var report := {
 		"kind": kind,
 		"location": node_id,
@@ -485,12 +677,15 @@ func _resolve_battle(kind: String, node_id: String, attacker: String, attacking:
 
 
 ## Premie obrońcy: Fortece na bronionej wyspie albo Porty jego wysp przy polu bitwy morskiej.
+## Metropolia działa jak Forteca i jak Port, więc daje osobną pozycję w raporcie.
 func _defense_modifiers(kind: String, node_id: String, defender: String) -> Array:
 	var result: Array = []
 	if kind == "LAND":
 		var fortresses := _count_buildings(node_id, "FORTRESS")
 		if fortresses > 0:
 			result.append({"source": "FORTRESS", "island": node_id, "value": fortresses})
+		if _state["islands"][node_id].get("metropolis", false):
+			result.append({"source": "METROPOLIS", "island": node_id, "value": 1})
 		return result
 	for island_id in ArchipelagoMap.islands_at(node_id):
 		if _state["islands"][island_id]["owner"] != defender:
@@ -498,6 +693,8 @@ func _defense_modifiers(kind: String, node_id: String, defender: String) -> Arra
 		var ports := _count_buildings(island_id, "PORT")
 		if ports > 0:
 			result.append({"source": "PORT", "island": island_id, "value": ports})
+		if _state["islands"][island_id].get("metropolis", false):
+			result.append({"source": "METROPOLIS", "island": island_id, "value": 1})
 	return result
 
 
@@ -512,8 +709,9 @@ func _god_turn_error(player_id: String) -> Dictionary:
 
 
 ## Nowa wyspa w stanie: nieumarli (Hades) i monument (Monumenty) są częścią schematu od początku.
+## Metropolia ma na wyspie osobne miejsce (jak `metropolisSlot` w TS) i nie zajmuje slotu budynku.
 static func _island(owner_id: String, troops: int) -> Dictionary:
-	return {"owner": owner_id, "troops": troops, "undead_troops": 0, "buildings": [], "monument": ""}
+	return {"owner": owner_id, "troops": troops, "undead_troops": 0, "buildings": [], "monument": "", "metropolis": false}
 
 
 static func _sea(owner_id: String, fleets: int) -> Dictionary:
@@ -547,6 +745,82 @@ func _bid_error_message(code: String, player_id: String, god_id: String, amount:
 	return code
 
 
+## Komunikat odmowy rekrutacji (kody z RecruitRules.recruit_error).
+func _recruit_error_message(code: String, player_id: String, kind: String, target_id: String) -> String:
+	match code:
+		"NOT_ACTIONS":
+			return "Teraz nie trwają tury bogów."
+		"NOT_YOUR_TURN":
+			return "Teraz tura gracza %s." % _name(current_actor())
+		"WRONG_GOD":
+			return "Bóg %s nie daje tej jednostki (%s)." % [god_of(_state), kind]
+		"NOT_SUPPORTED":
+			return "Tej rekrutacji serwer jeszcze nie obsługuje (%s)." % kind
+		"RECRUIT_LIMIT":
+			return "W tej turze nie pozyskasz już więcej (%s)." % kind
+		"WRONG_TERRITORY":
+			return "Oddział stawia się na wyspie, a flotę na polu morskim."
+		"NOT_OWNER":
+			return "Wyspa %s nie należy do ciebie." % target_id
+		"NOT_ADJACENT":
+			return "Flota musi stanąć przy jednej z twoich wysp."
+		"SEA_OCCUPIED":
+			return "Na polu %s stoją obce jednostki." % target_id
+		"NO_UNITS_LEFT":
+			return "Masz już na planszy wszystkie figurki tego rodzaju (%d)." % (RecruitRules.MAX_TROOPS if kind == "TROOP" else RecruitRules.MAX_FLEETS)
+		"CANNOT_AFFORD":
+			return "Ta rekrutacja kosztuje %d JZ, a masz %d JZ." % [RecruitRules.next_cost(_state, kind), int(_state["players"][player_id]["gold"])]
+	return code
+
+
+## Liczniki zakupów bieżącej tury boga. Nowa tura (inny RecruitRules.turn_key) zaczyna od zera.
+func _turn_progress() -> Dictionary:
+	var key := RecruitRules.turn_key(_state)
+	var progress: Dictionary = _state.get("turn_progress", {})
+	if progress.get("turn", "") != key:
+		progress = {"turn": key, "recruited": {}, "discount_used": false}
+		_state["turn_progress"] = progress
+	return progress
+
+
+## Komunikat odmowy zakupu stwora albo wymiany karty (kody z CreatureRules). `cost`: cena, której zabrakło.
+func _creature_error_message(code: String, player_id: String, cost: int) -> String:
+	match code:
+		"NOT_ACTIONS":
+			return "Teraz nie trwają tury bogów."
+		"NOT_YOUR_TURN":
+			return "Teraz tura gracza %s." % _name(current_actor())
+		"WRONG_GOD":
+			return "Karty stworów wymienia tylko tura Zeusa."
+		"INVALID_SLOT":
+			return "Tor stworów ma pola 0, 1 i 2."
+		"NO_CARD":
+			return "Na tym polu toru nie ma karty."
+		"NOT_SUPPORTED":
+			return "Mocy tego stwora serwer jeszcze nie obsługuje."
+		"INVALID_PARAMS":
+			return "Brakuje celu mocy stwora albo cel ma zły format."
+		"WRONG_TERRITORY":
+			return "Cel mocy stwora to nieznane albo złe pole."
+		"NO_BUILDING":
+			return "Na tej wyspie nie ma takiego budynku."
+		"NO_UNITS":
+			return "Na tej wyspie nie ma oddziałów."
+		"NOT_OWNER":
+			return "To nie jest twoja wyspa."
+		"INVALID_MOVE":
+			return "Pegaz przenosi oddziały na inną wyspę."
+		"NOT_ENOUGH_UNITS":
+			return "Na wyspie nie ma tylu oddziałów."
+		"LAST_ISLAND_PROTECTED":
+			return "Nie można zająć ostatniej wyspy rywala."
+		"INVALID_PATH":
+			return "Kraken płynie przez sąsiednie pola morskie."
+		"CANNOT_AFFORD":
+			return "To kosztuje %d JZ, a masz %d JZ." % [cost, int(_state["players"][player_id]["gold"])]
+	return code
+
+
 func _income_of(player_id: String) -> int:
 	var income := 0
 	for island_id in _state["islands"]:
@@ -575,11 +849,90 @@ func _log(event: Dictionary) -> void:
 		entries.pop_front()
 
 
-## Zatwierdzenie zmiany: nowa rewizja, rozesłanie projekcji i ewentualny ruch AI.
+## Zatwierdzenie zmiany: efekty stanowe (Metropolie), nowa rewizja, rozesłanie projekcji i ewentualny ruch AI.
 func _commit() -> void:
+	_apply_state_effects()
 	_state["revision"] = int(_state["revision"]) + 1
 	state_committed.emit()
 	_schedule_ai()
+
+
+# =============================================================================
+# Metropolie i koniec gry (tylko serwer)
+# =============================================================================
+
+## Efekty stanowe po każdej zmianie w trakcie partii: komplet czterech różnych budynków
+## albo czterech filozofów od razu zamienia się w Metropolię (zdobycie wyspy też może
+## domknąć komplet). Metropolia działa jak każdy budynek, ale nie tworzy kolejnego kompletu.
+func _apply_state_effects() -> void:
+	if not is_game_running():
+		return
+	for player_id in _state["seating"]:
+		while _has_building_set(player_id):
+			_found_metropolis(player_id, "BUILDINGS")
+		while int(_state["players"][player_id].get("philosophers", 0)) >= PHILOSOPHERS_PER_METROPOLIS:
+			_found_metropolis(player_id, "PHILOSOPHERS")
+
+
+func _has_building_set(player_id: String) -> bool:
+	var owned: Array = []
+	for island_id in _state["islands"]:
+		if _state["islands"][island_id]["owner"] == player_id:
+			owned.append_array(_state["islands"][island_id]["buildings"])
+	return METROPOLIS_BUILDINGS.all(func(building: String) -> bool: return building in owned)
+
+
+## Nowa Metropolia: znikają cztery różne budynki (najpierw z wyspy Metropolii) albo czterej
+## filozofowie. Gdy każda wyspa gracza ma już Metropolię, nowa „zastępuje” starą: składniki
+## przepadają, a liczba Metropolii się nie zmienia (tak instrukcja opisuje filozofów).
+func _found_metropolis(player_id: String, origin: String) -> void:
+	var site := _metropolis_site(player_id)
+	if origin == "PHILOSOPHERS":
+		var player: Dictionary = _state["players"][player_id]
+		player["philosophers"] = int(player["philosophers"]) - PHILOSOPHERS_PER_METROPOLIS
+	else:
+		for building in METROPOLIS_BUILDINGS:
+			_remove_building(player_id, building, site)
+	if site != "":
+		_state["islands"][site]["metropolis"] = true
+	_log({"type": "METROPOLIS", "player": player_id, "island": site, "origin": origin})
+
+
+## Miejsce na Metropolię: wyspa gracza bez Metropolii z największą liczbą różnych budynków
+## z kompletu, a przy remisie pierwsza w kolejności mapy. [zweryfikuj] W grze wybiera gracz.
+func _metropolis_site(player_id: String) -> String:
+	var best := ""
+	var best_score := -1
+	for island_id in MAP["islands"]:
+		var island: Dictionary = _state["islands"][island_id]
+		if island["owner"] != player_id or island.get("metropolis", false):
+			continue
+		var score := METROPOLIS_BUILDINGS.filter(func(building: String) -> bool: return building in island["buildings"]).size()
+		if score > best_score:
+			best = island_id
+			best_score = score
+	return best
+
+
+## Usuwa jeden budynek gracza danego typu: z wyspy `preferred`, a gdy go tam nie ma, z pierwszej wyspy w kolejności mapy.
+func _remove_building(player_id: String, building: String, preferred: String) -> void:
+	var candidates: Array = [preferred] if preferred != "" else []
+	candidates.append_array(MAP["islands"].keys())
+	for island_id in candidates:
+		var island: Dictionary = _state["islands"][island_id]
+		if island["owner"] == player_id and building in island["buildings"]:
+			island["buildings"].erase(building)
+			return
+
+
+## Zwycięzcy na koniec cyklu: gracze z METROPOLISES_TO_WIN Metropoliami, a spośród nich ci
+## z największą ilością złota (przy remisie kilku). Pusta lista oznacza, że gra toczy się dalej.
+func _winners() -> Array:
+	var contenders: Array = _state["seating"].filter(func(player_id: String) -> bool: return MoveRules.metropolises_of(_state, player_id) >= METROPOLISES_TO_WIN)
+	if contenders.is_empty():
+		return []
+	var richest: int = contenders.map(func(player_id: String) -> int: return int(_state["players"][player_id]["gold"])).max()
+	return contenders.filter(func(player_id: String) -> bool: return int(_state["players"][player_id]["gold"]) == richest)
 
 
 # =============================================================================

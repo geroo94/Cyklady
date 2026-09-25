@@ -52,7 +52,10 @@ const FIGURE_PLACEMENTS := ["", "ISLAND", "SEA"]
 ##   building       budynek stawiany w turze boga, pusty napis: brak budowy
 ##   recruits       co gracz pozyskuje w turze boga
 ##   recruit_costs  koszt kolejnej sztuki jednego rodzaju w jednej turze (indeks: która
-##                  z kolei). Długość listy to limit na turę, jak `undeadCosts` w TS.
+##                  z kolei). Długość listy to limit na turę, jak `undeadCosts` w TS. Wartości
+##                  podstawki według instrukcji: pierwsza sztuka za darmo, Ares 2/3/4 JZ,
+##                  Posejdon 1/2/3 JZ, Zeus i Atena 4 JZ (najwyżej 3 dodatkowe jednostki
+##                  i 1 dodatkowa karta w turze).
 ##   gold_bonus     JZ, które gracz dostaje w turze boga
 const GODS := {
 	"POSEIDON": {
@@ -62,7 +65,7 @@ const GODS := {
 		"randomized": true,
 		"building": "PORT",
 		"recruits": ["FLEET"],
-		"recruit_costs": [0, 1, 2, 3],  # [zweryfikuj]
+		"recruit_costs": [0, 1, 2, 3],
 		"gold_bonus": 0,
 	},
 	"ARES": {
@@ -72,7 +75,7 @@ const GODS := {
 		"randomized": true,
 		"building": "FORTRESS",
 		"recruits": ["TROOP"],
-		"recruit_costs": [0, 1, 2, 3],  # [zweryfikuj]
+		"recruit_costs": [0, 2, 3, 4],
 		"gold_bonus": 0,
 	},
 	"ZEUS": {
@@ -82,7 +85,7 @@ const GODS := {
 		"randomized": true,
 		"building": "TEMPLE",
 		"recruits": ["PRIEST"],
-		"recruit_costs": [0, 4],  # [zweryfikuj]
+		"recruit_costs": [0, 4],
 		"gold_bonus": 0,
 	},
 	"ATHENA": {
@@ -92,7 +95,7 @@ const GODS := {
 		"randomized": true,
 		"building": "UNIVERSITY",
 		"recruits": ["PHILOSOPHER"],
-		"recruit_costs": [0, 4],  # [zweryfikuj]
+		"recruit_costs": [0, 4],
 		"gold_bonus": 0,
 	},
 	"APOLLO": {
@@ -103,7 +106,8 @@ const GODS := {
 		"building": "",
 		"recruits": [],
 		"recruit_costs": [],
-		# Tak płaci dziś GameStateManager. [zweryfikuj] premia dla pierwszego gracza i znacznik dobrobytu
+		# Tak płaci dziś GameStateManager. Instrukcja: 1 JZ (4 JZ z jedną wyspą) i znacznik dobrobytu
+		# dla pierwszego gracza u Apolla (zadanie w TASKS.md).
 		"gold_bonus": 1,
 	},
 	"HADES": {

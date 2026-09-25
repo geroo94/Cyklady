@@ -20,7 +20,9 @@ godot/
 │   ├── core/
 │   │   ├── ArchipelagoMap.gd     mapa: wyspy, pola morskie, sąsiedztwo, miasta startowe
 │   │   ├── MoveRules.gd          reguły ruchu i budowy wspólne dla serwera i planszy
-│   │   └── BidRules.gd           reguły licytacji wspólne dla serwera i panelu licytacji
+│   │   ├── BidRules.gd           reguły licytacji wspólne dla serwera i panelu licytacji
+│   │   ├── RecruitRules.gd       rekrutacja: koszty, limity, miejsca nowych jednostek
+│   │   └── CreatureRules.gd      tor stworów: ceny ze zniżką, cele mocy, akcja Zeusa
 │   ├── network/
 │   │   ├── LanBeacon.gd          nadajnik: ogłoszenie gry co 1,5 s (UDP broadcast)
 │   │   └── LanListener.gd        odbiornik: lista gier, server_found / server_updated / server_lost
@@ -548,6 +550,9 @@ sequenceDiagram
 | klient → serwer | jw. | `rpc_submit_bid(god_id, amount)` | ofiara dla boga albo Apollo (`"APOLLO"`) |
 | klient → serwer | jw. | `rpc_move_units(from_id, to_id, count)` | ruch wojsk (wyspa → wyspa) albo flot (morze → morze) |
 | klient → serwer | jw. | `rpc_build(island_id)` | budynek boga, którego tura trwa |
+| klient → serwer | jw. | `rpc_recruit(kind, target_id)` | rekrutacja w turze boga: `TROOP`, `FLEET`, `PRIEST`, `PHILOSOPHER` (rozdział 10) |
+| klient → serwer | jw. | `rpc_buy_creature(slot, params)` | zakup stwora z pola toru i cel jego mocy |
+| klient → serwer | jw. | `rpc_swap_creature(slot)` | akcja Zeusa: wymiana karty z toru na wierzch talii |
 | klient → serwer | jw. | `rpc_end_turn()` | koniec tury boga |
 | serwer → klient | `@rpc("authority", "call_remote", "reliable")` | `rpc_registered(player_id, token)` | miejsce przy stole i żeton powrotu |
 | serwer → klient | jw. | `rpc_registration_refused(code, message)` | odmowa: partia trwa, brak miejsc, żeton wygasł |
@@ -642,10 +647,12 @@ Obce połączenie z gry solo serwer rozłącza od razu.
 godot --headless --path godot res://tests/RunTests.tscn
 ```
 
-Kod wyjścia 0 oznacza, że wszystkie testy przeszły. Testów jest 41 i obejmują:
+Kod wyjścia 0 oznacza, że wszystkie testy przeszły. Testów jest 57 i obejmują:
 - dane gry: spójność `GameData` (walidator), zgodność bogów i budynków z regułami serwera, talie z dodatkami i bez;
+- tury bogów: rekrutację (koszty 0/2/3/4 i 0/1/2/3 JZ, kapłani i filozofowie, limity w turze, 8 figurek, miejsca, odmowy bez zmiany stanu), Metropolie z budynków i z filozofów, Metropolię w obronie, koniec gry z remisem w złocie i wyjątek ostatniej wyspy;
+- stwory: tor i jego odświeżanie, talię ukrytą w projekcji, ceny ze Świątyniami, akcję Zeusa oraz moce Giganta, Harpii, Pegaza, Krakena i Minotaura;
 - reguły: licytację, przebicie i kapłanów, ruchy i most z flot, bitwy z Fortecami i Portami, rozkład kości, projekcję, koniec cyklu i AI;
-- sieć: synchronizację projekcji, odrzucanie ruchów poza kolejką i podszywania się pod serwer, przebicie przez sieć, ten sam raport bitwy u wszystkich;
+- sieć: synchronizację projekcji, odrzucanie ruchów poza kolejką i podszywania się pod serwer, przebicie przez sieć, ten sam raport bitwy u wszystkich, rekrutację, wymianę karty i zakup stwora przez RPC;
 - rozłączenia: rozłączenie i powrót z pełną migawką, przejęcie miejsca przez AI po oknie powrotu, odmowę dla spóźnionego gracza, zniknięcie hosta i grę solo;
 - LAN Discovery:
   - format i walidację pakietu;
@@ -655,7 +662,7 @@ Kod wyjścia 0 oznacza, że wszystkie testy przeszły. Testów jest 41 i obejmuj
   - ogłoszenia hosta (dołączenie, AI, dodatki, start partii, wyjście);
   - brak ogłoszeń w grze solo;
   - odczyt adresu IP;
-- UI: ekran lobby (lista, dołączenie do wybranej gry, „Połącz przez IP”, trwająca partia, „Stwórz Grę LAN”) i scena główna z grą solo;
+- UI: ekran lobby (lista, dołączenie do wybranej gry, „Połącz przez IP”, trwająca partia, „Stwórz Grę LAN”), scena główna z grą solo i dziennik partii z opisami nowych zdarzeń;
 - reguły ruchu (`MoveRules`):
   - most z flot, także nieumarłych;
   - zasięg flot i blokowanie przez obce floty;
@@ -693,19 +700,53 @@ w którym wystąpił. Jedyny komunikat `ERROR: RPC 'rpc_sync_game_state' is not
 allowed…` jest oczekiwany i zadeklarowany w teście. To Godot odrzuca próbę
 podszycia się pod serwer, którą test celowo wykonuje.
 
-## 10. Uproszczenia
+## 10. Tury bogów: rekrutacja, stwory, Metropolie i koniec gry
 
-To warstwa sieciowa i szkielet reguł. Poza zakresem są: stwory i herosi,
-rekrutacja, kupowanie kapłanów i filozofów, Metropolie, warunek zwycięstwa
-i odwroty w bitwie. Z dodatków są: wybór w lobby, pola stanu (nieumarli,
-monument), ich wygląd na planszy oraz zasady mostu, obrony i bitwy z
-nieumarłymi. Nie ma jeszcze tury Hadesa (rekrutacja nieumarłych, ich ruch
-i zniknięcie na koniec cyklu) ani zdobywania monumentów. Serwer Godot nie
-wystawia też Hadesa do licytacji, ale panel obsługuje jego tor, gdy Hades
-jest na torze. Zniżkę kapłanów liczą serwer i panel, jednak w tej wersji
-kapłana nie da się jeszcze zdobyć (tura Zeusa daje tylko Świątynię), więc
-ich liczba pochodzi ze stanu gry. Wszystkie te elementy
-wpina się tak samo: nowa metoda `apply_*` w `GameStateManager` (walidacja,
-potem zmiana stanu, potem `_commit()`) i para RPC w `NetworkManager`.
-Pełne reguły, dodatki i protokół są w wersji TypeScript w tym samym
-repozytorium (`src/`, opis w `SIEC.md`), zbudowanej na tych samych zasadach.
+Reguły tur bogów leżą w klasach statycznych wspólnych dla serwera i UI, tak jak `BidRules` i `MoveRules`:
+- `scripts/core/RecruitRules.gd`: koszt kolejnej sztuki, limity i pola, na których może stanąć nowa jednostka;
+- `scripts/core/CreatureRules.gd`: cena karty ze zniżką, cele mocy stworów i akcja Zeusa.
+
+Serwer wykonuje akcje w `GameStateManager` (`apply_recruit`, `apply_buy_creature`, `apply_swap_creature`).
+Klient wysyła je przez `NetworkManager` (`recruit`, `buy_creature`, `swap_creature`), a te trafiają do hosta jako RPC.
+
+| Mechanika | Zasada (instrukcja podstawki) | Gdzie |
+|---|---|---|
+| Rekrutacja | pierwsza sztuka za darmo; Ares 2/3/4 JZ, Posejdon 1/2/3 JZ, Zeus i Atena 4 JZ; w turze najwyżej 3 dodatkowe jednostki albo 1 dodatkowa karta; gracz ma najwyżej 8 oddziałów i 8 flot | `RecruitRules`, koszty w `GameData.GODS` |
+| Miejsce rekrutacji | oddział na własnej wyspie; flota na polu przy własnej wyspie, bez obcych jednostek i bez Krakena | `RecruitRules.recruit_targets` |
+| Budowa | 2 JZ, budynek boga tury na własnej wyspie z wolnym miejscem (w turze można postawić kilka) | `MoveRules.build_targets`, `apply_build` |
+| Tor stworów | pola za 2, 3 i 4 JZ; na początku cyklu karta za 2 JZ odchodzi, reszta zsuwa się, nowe wchodzą od strony 4 JZ | `_refresh_creatures` |
+| Zakup stwora | w turze dowolnego boga; każda Świątynia (i Metropolia) obniża cenę o 1 JZ raz na turę, ale płaci się co najmniej 1 JZ | `CreatureRules.price` |
+| Akcja Zeusa | za 1 JZ karta z toru idzie na stos, a jej miejsce zajmuje wierzch talii | `apply_swap_creature` |
+| Metropolia | komplet 4 różnych budynków (także z kilku wysp) albo 4 filozofów od razu zamienia się w Metropolię; jedna na wyspę, działa jak Forteca i Port | `_apply_state_effects` |
+| Koniec gry | na koniec cyklu wygrywa gracz z 2 Metropoliami; przy kilku takich decyduje złoto, a przy równym złocie wygrywają wszyscy (faza `GAME_OVER`, pole `winners`) | `apply_end_turn`, `_winners` |
+| Ostatnia wyspa | atak jest dozwolony, gdy da atakującemu drugą Metropolię | `MoveRules.last_island_protected` |
+
+Moce stworów (`params` przy zakupie):
+
+| Stwór | `params` | Moc |
+|---|---|---|
+| Gigant | `{ island, building }` | niszczy budynek (Metropolia nie jest budynkiem) |
+| Harpia | `{ island }` | zabiera z wyspy jeden oddział |
+| Pegaz | `{ from, to, count }` | przenosi oddziały z własnej wyspy na dowolną, bez łańcucha flot; na wyspie rywala wybucha bitwa |
+| Kraken | `{ sea, path? }` | niszczy floty na polu i na trasie (+1 JZ za każde pole); na jego pole nie wpłynie żadna flota |
+| Minotaur | `{ island }` | na własnej wyspie broni jak 2 oddziały i ginie po nich; znika na początku następnej tury kupującego |
+
+- **Założenia `[zweryfikuj]`.** Metropolię stawia serwer na wyspie z największą liczbą różnych budynków kompletu (w grze wybiera gracz). Metropolia ma na wyspie osobne miejsce, jak w modelu TS. Minotaura można postawić tylko na własnej wyspie.
+- **Tajna talia.** Projekcja podaje z talii stworów tylko liczbę kart (`creatures.deck_size`).
+- **Interfejs.** Przyciski rekrutacji, tor stworów i figurki Krakena oraz Minotaura na planszy to kolejne zadania (TASKS.md, rozdział 5). Dziś akcje są dostępne przez API `NetworkManager`, a dziennik partii je opisuje.
+
+## 11. Uproszczenia
+
+To warstwa sieciowa i reguły podstawki z kilkoma lukami. Poza zakresem są
+herosi i odwroty w bitwie. Apollo daje zawsze 1 JZ, bez znacznika dobrobytu
+i bez 4 JZ dla gracza z jedną wyspą. Talia stworów to na razie katalog
+przykładowy (5 rodzajów, 6 kart). Z dodatków są: wybór w lobby, pola stanu
+(nieumarli, monument), ich wygląd na planszy oraz zasady mostu, obrony
+i bitwy z nieumarłymi. Nie ma jeszcze tury Hadesa (rekrutacja nieumarłych,
+ich ruch i zniknięcie na koniec cyklu) ani zdobywania monumentów. Serwer
+Godot nie wystawia też Hadesa do licytacji, ale panel obsługuje jego tor,
+gdy Hades jest na torze. Wszystkie te elementy wpina się tak samo: nowa
+metoda `apply_*` w `GameStateManager` (walidacja, potem zmiana stanu, potem
+`_commit()`) i para RPC w `NetworkManager`. Pełne reguły, dodatki i protokół
+są w wersji TypeScript w tym samym repozytorium (`src/`, opis w `SIEC.md`),
+zbudowanej na tych samych zasadach.

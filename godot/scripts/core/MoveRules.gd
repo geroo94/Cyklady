@@ -15,7 +15,8 @@
 ##    ruchu przenosi tylko zwykłe oddziały i floty, nieumarli zostają na polu.
 ##  - Posejdon: flota płynie najwyżej FLEET_RANGE pól. Przez pole z obcą
 ##    flotą nie przepłynie, ale może na nie wpłynąć (bitwa).
-##  - Nie można zająć ostatniej wyspy innego gracza.
+##  - Nie można zająć ostatniej wyspy innego gracza, chyba że po jej zdobyciu
+##    atakujący miałby METROPOLISES_TO_WIN Metropolii.
 ##  - Ruch kosztuje MOVE_COST JZ.
 class_name MoveRules
 extends RefCounted
@@ -30,6 +31,10 @@ const GOD_BUILDING := {"POSEIDON": "PORT", "ARES": "FORTRESS", "ZEUS": "TEMPLE",
 const MOVE_COST := 1
 const BUILD_COST := 2
 const FLEET_RANGE := 3
+## Metropolie potrzebne do zwycięstwa (i do ataku na ostatnią wyspę rywala).
+const METROPOLISES_TO_WIN := 2
+## Minotaur broni swojej wyspy jak tyle oddziałów.
+const MINOTAUR_STRENGTH := 2
 
 ## Rodzaj celu: zwykły ruch (wolne, własne albo puste obce pole) albo atak (obce jednostki, czyli bitwa).
 const TARGET_MOVE := "MOVE"
@@ -84,7 +89,7 @@ static func move_targets(state: Dictionary, player_id: String, from_id: String, 
 		for island_id in bridged_islands(state, player_id, from_id):
 			var holder := String(state["islands"][island_id]["owner"])
 			var hostile := holder != "" and holder != player_id
-			if hostile and islands_of(state, holder) == 1:
+			if last_island_protected(state, player_id, island_id):
 				continue  # ostatnia wyspa gracza jest chroniona
 			result[island_id] = TARGET_ATTACK if hostile and units_on(state, island_id) > 0 else TARGET_MOVE
 	else:
@@ -134,7 +139,9 @@ static func has_fleet_bridge(state: Dictionary, player_id: String, from_island: 
 
 ## Pola, na które flota z `from_sea` dopłynie w zasięgu, z najkrótszą odległością: { sea_id: pola }.
 ## Obca flota zatrzymuje ruch: można na nią wpłynąć (bitwa), ale nie da się przez nią przepłynąć.
+## Na pole z Krakenem nie wpływa żadna flota, więc nie da się też przez nie przepłynąć.
 static func fleet_reach(state: Dictionary, player_id: String, from_sea: String) -> Dictionary:
+	var kraken := String(state.get("kraken", ""))
 	var distance := {from_sea: 0}
 	var queue: Array = [from_sea]
 	while not queue.is_empty():
@@ -142,7 +149,7 @@ static func fleet_reach(state: Dictionary, player_id: String, from_sea: String) 
 		if int(distance[sea_id]) >= FLEET_RANGE:
 			continue
 		for next in ArchipelagoMap.MAP["seas"][sea_id]:
-			if distance.has(next):
+			if distance.has(next) or next == kraken:
 				continue
 			distance[next] = int(distance[sea_id]) + 1
 			var holder := String(state["seas"][next]["owner"])
@@ -158,10 +165,12 @@ static func fleet_distance(state: Dictionary, player_id: String, from_sea: Strin
 
 
 ## Jednostki na polu razem z nieumarłymi (Hades): oddziały na wyspie, floty na morzu.
+## Minotaur liczy się na swojej wyspie jak MINOTAUR_STRENGTH oddziały (wejście na nią to bitwa).
 static func units_on(state: Dictionary, territory_id: String) -> int:
 	if state["islands"].has(territory_id):
 		var island: Dictionary = state["islands"][territory_id]
-		return int(island["troops"]) + int(island.get("undead_troops", 0))
+		var minotaur := MINOTAUR_STRENGTH if state.get("minotaur", {}).get("island", "") == territory_id else 0
+		return int(island["troops"]) + int(island.get("undead_troops", 0)) + minotaur
 	var sea: Dictionary = state["seas"][territory_id]
 	return int(sea["fleets"]) + int(sea.get("undead_fleets", 0))
 
@@ -181,6 +190,27 @@ static func islands_of(state: Dictionary, player_id: String) -> int:
 		if state["islands"][island_id]["owner"] == player_id:
 			count += 1
 	return count
+
+
+## Metropolie gracza: jego wyspy z Metropolią (zdobyta wyspa przynosi też swoją Metropolię).
+static func metropolises_of(state: Dictionary, player_id: String) -> int:
+	var count := 0
+	for island_id in state["islands"]:
+		var island: Dictionary = state["islands"][island_id]
+		if island["owner"] == player_id and island.get("metropolis", false):
+			count += 1
+	return count
+
+
+## Reguła ostatniej wyspy: nie wolno zająć jedynej wyspy innego gracza, chyba że po jej zdobyciu
+## atakujący miałby METROPOLISES_TO_WIN Metropolii (liczy się też Metropolia na tej wyspie).
+static func last_island_protected(state: Dictionary, attacker: String, island_id: String) -> bool:
+	var island: Dictionary = state["islands"][island_id]
+	var holder := String(island["owner"])
+	if holder == "" or holder == attacker or islands_of(state, holder) > 1:
+		return false
+	var after := metropolises_of(state, attacker) + (1 if island.get("metropolis", false) else 0)
+	return after < METROPOLISES_TO_WIN
 
 
 static func gold_of(state: Dictionary, player_id: String) -> int:

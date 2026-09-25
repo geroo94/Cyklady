@@ -3,7 +3,7 @@
 Checklista prac nad wersją cyfrową (podstawka + Hades + Monumenty). Powstała
 z [ARCHITEKTURA.md](ARCHITEKTURA.md) („Następne kroki”, „Założenia do
 weryfikacji”), [SIEC.md](SIEC.md) (rozdział 12), [NAWIGACJA.md](NAWIGACJA.md)
-i [godot/README.md](godot/README.md) (rozdział 10 „Uproszczenia”).
+i [godot/README.md](godot/README.md) (rozdział 11 „Uproszczenia”).
 
 - `[x]`: zrobione i pokryte testami, `[ ]`: do zrobienia.
 - **TS** to silnik referencyjny w `src/` (`npm run check`), **Godot** to gra
@@ -39,27 +39,29 @@ Zrobione:
 - [x] **Ruch i bitwa (TS)**: floty (zasięg 3), wojska po moście z flot, reguła ostatniej wyspy, bitwa z odwrotami i raportem modyfikatorów
 - [x] **Dodatki jako moduły cyklu (TS)**: Hades (Kolumna Hadesa, nieumarli, Nekropolie) i Monumenty (rozdanie kart, automatyczne stawianie)
 - [x] **Stan gry w Godot**: `GameStateManager` z licytacją, ruchem, budową, bitwą bez odwrotów, dochodem i końcem cyklu
-- [x] **Reguły wspólne serwera i UI (Godot)**: `BidRules`, `MoveRules`, `ArchipelagoMap`
+- [x] **Reguły wspólne serwera i UI (Godot)**: `BidRules`, `MoveRules`, `ArchipelagoMap`, `RecruitRules`, `CreatureRules`
 
 Do zrobienia:
 
 - [x] **Szkielet bazy danych gry**: `godot/scripts/autoload/GameData.gd` (autoload) z bogami, stworami i herosami oraz Monumentami, walidatorem i testem spójności z regułami serwera
-- [ ] **Dary bogów i rekrutacja (TS, potem Godot)**: floty (Posejdon), oddziały (Ares), kapłani (Zeus), filozofowie (Atena). Rosnące koszty w turze i limit na turę `[zweryfikuj]`
+- [x] **Rekrutacja (Godot)**: oddziały Aresa 0/2/3/4 JZ, floty Posejdona 0/1/2/3 JZ, kapłani Zeusa i filozofowie Ateny 0/4 JZ, limity w turze, 8 oddziałów i 8 flot na gracza, miejsca nowych jednostek (`RecruitRules`, `apply_recruit`)
+- [ ] **Rekrutacja w TS**: te same zasady w silniku referencyjnym (`src/engine/`)
 - [ ] **Tura Apolla**: dochód, znacznik dobrobytu, premia dla pierwszego gracza u Apolla `[zweryfikuj]`
-- [ ] **Zakup stworów i efekty kart**: tor 2/3/4 JZ, zniżka ze Świątyń, efekty według klucza `effect`. W TS jest dziś tylko Gigant, a `BUY_CREATURE` zwraca `UNSUPPORTED_ACTION`
+- [x] **Stwory (Godot)**: tor 2/3/4 JZ z odświeżaniem na początku cyklu, zniżka ze Świątyń (i Metropolii) raz na turę, akcja Zeusa (wymiana karty za 1 JZ), moce Giganta, Harpii, Pegaza, Krakena i Minotaura (`CreatureRules`, `apply_buy_creature`, `apply_swap_creature`)
+- [ ] **Stwory w TS**: zakup i moce w silniku referencyjnym (dziś tylko Gigant, a `BUY_CREATURE` zwraca `UNSUPPORTED_ACTION`)
 - [ ] **Herosi (Hades)**: zakup z toru stworów, siła w bitwie lądowej, zdolności (Ulisses już działa w bitwie TS)
-- [ ] **Metropolie i koniec gry w Godot**: Metropolia z 4 filozofów albo z kompletu budynków, zwycięstwo po 2 Metropoliach
+- [x] **Metropolie i koniec gry w Godot**: Metropolia z kompletu 4 różnych budynków albo z 4 filozofów, obrona jak Forteca i Port, zwycięstwo po 2 Metropoliach na koniec cyklu (remis: złoto), wyjątek ostatniej wyspy
 - [ ] **Odwroty w bitwie (Godot)**: decyzje obrońcy i atakującego po każdej rundzie. Dziś bitwa w Godot toczy się do rozstrzygnięcia
 - [ ] **Hades w Godot**: rzut na Kolumnę Hadesa, Hades na torze licytacji, rekrutacja nieumarłych, Nekropolie, powrót nieumarłych do puli na koniec cyklu
 - [ ] **Monumenty w Godot**: rozdanie kart, automatyczne stawianie figurki, efekty w bitwie (Wielka Cytadela Aresa, Port Wojenny)
 - [ ] **Wariant 2-osobowy**: liczba bogów w cyklu i 2 znaczniki ofiary na gracza
-- [ ] **Weryfikacja założeń z instrukcją**: wszystkie `[zweryfikuj]` z ARCHITEKTURA.md i NAWIGACJA.md (złoto startowe, bogowie wg liczby graczy, tor stworów, parametry Hadesa, zasady Monumentów, Teatr, koszt ruchu) oraz wartości w `GameData.gd`
+- [ ] **Weryfikacja założeń z instrukcją**: wszystkie `[zweryfikuj]` z ARCHITEKTURA.md i NAWIGACJA.md (złoto startowe, bogowie wg liczby graczy, tor stworów, parametry Hadesa, zasady Monumentów, Teatr, koszt ruchu) oraz założenia Godota: Metropolię stawia serwer (w grze wybiera gracz), Minotaur tylko na własnej wyspie
 
 ## 2. Dane gry
 
 - [ ] **Pełny katalog z pudełka**: wszystkie stwory (kopie, figurki), herosi, Monumenty i magiczne przedmioty. Dziś TS i Godot mają tylko katalog przykładowy
   - Do rozważenia: jedno źródło danych (np. JSON w `godot/resources/cards/`) czytane przez TS i Godota, zamiast dwóch ręcznie zgodnych kopii.
-- [ ] **GameData w regułach Godot**: `GameStateManager` i `MoveRules` biorą bogów i budynki z `GameData` zamiast z własnych stałych
+- [ ] **GameData w regułach Godot**: koszty rekrutacji i talia stworów już pochodzą z `GameData`; zostały stałe `GODS` i `GOD_BUILDING` w `GameStateManager` i `MoveRules`
 - [ ] **Mapy dla 2–5 graczy**: dziś są tylko „Archipelag” i mapa przykładowa, a wybór mapy w lobby nie istnieje
 - [ ] **Zasoby `.tres`**: karty w `resources/cards/`, Monumenty w `resources/monuments/` (ilustracja, ikona, opis), gdy będą grafiki
 
@@ -76,7 +78,8 @@ Zrobione:
 
 Do zrobienia:
 
-- [ ] **RPC dla nowych akcji**: para RPC i walidacja na serwerze dla każdej nowej metody `apply_*` (rekrutacja, stwory, tura Hadesa, odwrót)
+- [x] **RPC dla rekrutacji i stworów**: `rpc_recruit`, `rpc_buy_creature`, `rpc_swap_creature`, walidacja wyłącznie na serwerze, odmowa tylko do nadawcy
+- [ ] **RPC dla kolejnych akcji**: tura Hadesa i odwrót w bitwie
 - [ ] **Zegar tury w Godot**: limity czasu decyzji i ruch pasywny, tak jak `src/net/turnClock.ts`
 - [ ] **Lobby w Godot**: wybór koloru i miasta, gotowość graczy (jak `Room.handleLobby` w TS). Dziś kolory przydziela kolejność przy stole
 - [ ] **Test w prawdziwej sieci**: 2–3 komputery, zapora (host: UDP 8910, gracze: UDP 45454–45457), Wi-Fi z izolacją klientów
@@ -106,9 +109,10 @@ Do zrobienia:
 - [ ] **Poczekalnia** (`scenes/lobby/`): gracze, kolory, miasta, dodatki, gotowość, start
 - [ ] **Panel gracza** (`scenes/ui/`): złoto, kapłani, filozofowie, dochód, karta Monumentu
 - [ ] **Tura boga**: przyciski rekrutacji i budowy właściwe dla boga (dane z `GameData`)
-- [ ] **Tor stworów**: karty na polach 2/3/4 JZ, zakup i wybór celu efektu
+- [ ] **Tor stworów**: karty na polach 2/3/4 JZ z ceną po zniżce, zakup, wybór celu mocy, wymiana kartą Zeusa
+- [ ] **Figurki na planszy**: Kraken na polu morskim i Minotaur na wyspie (dziś widać je tylko w dzienniku)
 - [ ] **Okno bitwy**: raport rundy, rzut, decyzja o odwrocie
-- [ ] **Ekran końca gry**
+- [ ] **Ekran końca gry**: dziś zwycięzców podają pasek stanu i dziennik
 - [ ] **Grafika, dźwięk i czcionki** (`assets/`): czcionka z symbolami ⚔ ☠ ⚓ ★, których nie ma wbudowana czcionka Godota (dziś etykiety planszy używają liter i `†`)
 - [ ] **Tłumaczenia**: nazwy z `GameData` jako klucze tłumaczeń
 - [ ] **Zapamiętanie gracza**: imię, ostatni host i żeton powrotu w `ConfigFile` w `user://`

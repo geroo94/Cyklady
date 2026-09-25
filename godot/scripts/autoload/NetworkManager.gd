@@ -6,8 +6,8 @@
 ##   CLIENT         połączenie z hostem; klient wysyła wyłącznie intencje.
 ##
 ## SERWER DECYDUJE (server-authoritative)
-##   Klient wywołuje na serwerze (peer 1) rpc_submit_bid, rpc_move_units, rpc_build
-##   albo rpc_end_turn. Serwer ustala gracza z ID nadawcy
+##   Klient wywołuje na serwerze (peer 1) rpc_submit_bid, rpc_move_units, rpc_build,
+##   rpc_recruit, rpc_buy_creature, rpc_swap_creature albo rpc_end_turn. Serwer ustala gracza z ID nadawcy
 ##   (multiplayer.get_remote_sender_id()), a nie z treści wiadomości, więc nikt
 ##   nie zagra za kogoś innego. Reguły sprawdza GameStateManager. Wynik wraca jako
 ##   rpc_sync_game_state (każdy gracz dostaje własną projekcję stanu) albo jako
@@ -254,6 +254,30 @@ func build(island_id: String) -> void:
 		rpc_build.rpc_id(1, island_id)
 
 
+## Rekrutacja w turze boga: oddział (cel: wyspa), flota (cel: pole morskie), kapłan albo filozof (bez celu).
+func recruit(kind: String, target_id: String) -> void:
+	if _is_host():
+		_report(game_state.apply_recruit(local_player_id, kind, target_id))
+	elif _is_connected_client():
+		rpc_recruit.rpc_id(1, kind, target_id)
+
+
+## Zakup stwora z pola toru (0: 2 JZ, 1: 3 JZ, 2: 4 JZ). `params` to cel jego mocy (opis w CreatureRules).
+func buy_creature(slot: int, params: Dictionary) -> void:
+	if _is_host():
+		_report(game_state.apply_buy_creature(local_player_id, slot, params))
+	elif _is_connected_client():
+		rpc_buy_creature.rpc_id(1, slot, params)
+
+
+## Akcja Zeusa: karta z pola toru idzie na stos, a jej miejsce zajmuje wierzch talii (1 JZ).
+func swap_creature(slot: int) -> void:
+	if _is_host():
+		_report(game_state.apply_swap_creature(local_player_id, slot))
+	elif _is_connected_client():
+		rpc_swap_creature.rpc_id(1, slot)
+
+
 ## Koniec tury boga.
 func end_turn() -> void:
 	if _is_host():
@@ -309,6 +333,22 @@ func rpc_build(island_id: String) -> void:
 @rpc("any_peer", "call_remote", "reliable")
 func rpc_end_turn() -> void:
 	_handle_intent(func(player_id: String) -> Dictionary: return game_state.apply_end_turn(player_id))
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func rpc_recruit(kind: String, target_id: String) -> void:
+	_handle_intent(func(player_id: String) -> Dictionary: return game_state.apply_recruit(player_id, kind, target_id))
+
+
+## Cel mocy stwora przychodzi jako słownik z sieci: typy i wartości sprawdza CreatureRules na serwerze.
+@rpc("any_peer", "call_remote", "reliable")
+func rpc_buy_creature(slot: int, params: Dictionary) -> void:
+	_handle_intent(func(player_id: String) -> Dictionary: return game_state.apply_buy_creature(player_id, slot, params))
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func rpc_swap_creature(slot: int) -> void:
+	_handle_intent(func(player_id: String) -> Dictionary: return game_state.apply_swap_creature(player_id, slot))
 
 
 ## Wspólna obsługa intencji na serwerze: gracz wynika z połączenia, a nie z treści wiadomości.

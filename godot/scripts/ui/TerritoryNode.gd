@@ -169,6 +169,8 @@ func apply_state(data: Dictionary, color: Color = Color(0, 0, 0, 0)) -> void:
 	if type == Type.ISLAND:
 		units = {"troops": int(data.get("troops", 0)), "undead_troops": int(data.get("undead_troops", 0))}
 		buildings.assign(data.get("buildings", []))
+		if data.get("metropolis", false):
+			buildings.append("METROPOLIS")  # Metropolia ma osobne miejsce na wyspie; etykieta: M
 		monument = String(data.get("monument", ""))
 	else:
 		units = {"fleets": int(data.get("fleets", 0)), "undead_fleets": int(data.get("undead_fleets", 0))}

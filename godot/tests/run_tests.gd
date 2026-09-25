@@ -92,6 +92,20 @@ func _ready() -> void:
 	NetworkManager.single_player_ports = _single_player_ports
 	var tests := [
 		["Dane gry: GameData – spójna baza, zgodna z regułami serwera, talie z dodatkami i bez", test_game_data],
+		["Rekrutacja: oddziały Aresa (0, 2, 3, 4 JZ), limit 4 w turze i 8 figurek, nowa tura od nowa", test_recruit_troops],
+		["Rekrutacja: floty Posejdona (0, 1, 2, 3 JZ) przy własnych wyspach, bez obcych flot", test_recruit_fleets],
+		["Rekrutacja: kapłani Zeusa i filozofowie Ateny (0 i 4 JZ), odmowy bez zmiany stanu", test_recruit_cards_and_rejections],
+		["Metropolia z kompletu 4 różnych budynków (także z kilku wysp), nadmiarowe budynki zostają", test_metropolis_from_buildings],
+		["Metropolia z 4 filozofów; bez wolnego miejsca filozofowie przepadają", test_metropolis_from_philosophers],
+		["Bitwa: Metropolia broni jak Forteca (ląd) i jak Port (morze)", test_metropolis_defense],
+		["Koniec cyklu: 2 Metropolie wygrywają, remis rozstrzyga złoto, bez zwycięzcy nowy cykl", test_victory_at_cycle_end],
+		["Ostatnia wyspa: atak dozwolony, gdy da atakującemu drugą Metropolię (serwer = plansza)", test_last_island_metropolis_exception],
+		["Tor stworów: 3 karty z talii, odświeżenie na początku cyklu, talia ukryta w projekcji", test_creature_market],
+		["Zakup stwora: 4/3/2 JZ, Świątynie (i Metropolia) obniżają cenę raz na turę, najmniej 1 JZ", test_buy_creature],
+		["Zeus: wymiana karty z toru na wierzch talii za 1 JZ", test_zeus_swap],
+		["Stwory: Gigant niszczy budynek, Harpia zabiera oddział, Pegaz przenosi wojska bez flot", test_creature_effects],
+		["Kraken: niszczy floty na swojej trasie i blokuje pole dla flot", test_kraken],
+		["Minotaur: broni wyspy jak 2 oddziały i znika na początku następnej tury kupującego", test_minotaur],
 		["Stan: nowa partia (złoto, miasta, floty, bogowie, kolejka)", test_new_game],
 		["Licytacja: walidacja tury, boga, kwoty i złota", test_bid_validation],
 		["Licytacja: przebicie, zakaz powrotu, kapłani, Apollo i kolejność tur", test_outbid_and_settlement],
@@ -109,12 +123,14 @@ func _ready() -> void:
 		["LAN: tylko serwer decyduje (ruch poza kolejką, podszywanie się pod serwer)", test_server_authority],
 		["LAN: przebicie w licytacji przez sieć", test_network_outbid],
 		["LAN: bitwa – ten sam raport u wszystkich, stan zgodny", test_network_battle],
+		["LAN: rekrutacja, wymiana karty (Zeus) i zakup stwora przez RPC; odmowa tylko do nadawcy", test_network_god_actions],
 		["LAN: rozłączenie w trakcie partii i powrót z pełną migawką", test_disconnect_and_reconnect],
 		["LAN: okno powrotu mija – AI przejmuje miejsce i gra, żeton wygasa", test_reconnect_window_expires],
 		["LAN: nowy gracz bez żetonu nie wejdzie do trwającej partii", test_late_join_refused],
 		["LAN: host kończy grę – klienci dostają server_disconnected", test_server_disconnected],
 		["Gra solo: serwer na 127.0.0.1, AI gra samo, gość odrzucony", test_single_player],
 		["UI: gra solo z przyciskami sceny Main.tscn (prawdziwe autoloady)", test_main_scene],
+		["UI: dziennik partii opisuje rekrutację, stwory, Metropolie i koniec gry", test_main_log_describes_new_events],
 		["LAN Discovery: pakiet ogłoszenia – kodowanie, odczyt, obce i uszkodzone pakiety", test_beacon_packet],
 		["LAN Discovery: nadajnik → odbiornik przez UDP (found, updated, lost)", test_beacon_to_listener],
 		["LAN Discovery: zajęty port – odbiornik bierze kolejny z zakresu", test_listener_port_fallback],
@@ -175,6 +191,394 @@ func test_game_data() -> void:
 	check(problems.size() == 1 and problems[0].contains("recruits"), "walidator: brak pola (%s)" % [problems])
 
 
+## Ares: pierwszy oddział za darmo, kolejne za 2, 3 i 4 JZ (najwyżej 4 w turze), tylko na
+## własnej wyspie i najwyżej 8 oddziałów gracza na planszy. Nowa tura liczy zakupy od nowa.
+func test_recruit_troops() -> void:
+	var gsm := _logic_game()
+	_turn(gsm, "ARES", "p1")
+	var state: Dictionary = gsm._state
+	state["players"]["p1"]["gold"] = 20
+	for expected_gold in [20, 18, 15, 11]:
+		check_code(gsm.apply_recruit("p1", "TROOP", "andros"), "")
+		check_eq(_gold(gsm, "p1"), expected_gold, "złoto po kolejnym oddziale")
+	check_eq(state["islands"]["andros"]["troops"], 6, "cztery nowe oddziały na Andros")
+	check(_has_event(state, {"type": "RECRUIT", "player": "p1", "kind": "TROOP", "target": "andros", "cost": 4}), "rekrutacja w dzienniku")
+	check_code(gsm.apply_recruit("p1", "TROOP", "andros"), "RECRUIT_LIMIT")
+	state["cycle"] = int(state["cycle"]) + 1
+	_turn(gsm, "ARES", "p1")
+	check_code(gsm.apply_recruit("p1", "TROOP", "andros"), "")
+	check_eq(_gold(gsm, "p1"), 11, "nowa tura: pierwszy oddział znowu za darmo")
+	check_code(gsm.apply_recruit("p1", "TROOP", "andros"), "")
+	check_eq([state["islands"]["andros"]["troops"], _gold(gsm, "p1")], [8, 9], "ósmy oddział za 2 JZ")
+	check_code(gsm.apply_recruit("p1", "TROOP", "andros"), "NO_UNITS_LEFT")
+	check_eq(_gold(gsm, "p1"), 9, "bez wolnej figurki nie ma zapłaty")
+
+
+## Posejdon: flota za darmo, kolejne za 1, 2 i 3 JZ, na polu przy własnej wyspie, na którym nie ma obcych jednostek.
+func test_recruit_fleets() -> void:
+	var gsm := _logic_game()
+	_turn(gsm, "POSEIDON", "p1")
+	var state: Dictionary = gsm._state
+	state["players"]["p1"]["gold"] = 10
+	state["islands"]["syros"] = _isle("p1", 1)  # Syros leży przy Morzu Pn. i Pn-Zach.
+	state["islands"]["paros"] = _isle("p1", 1)  # Paros: przy Morzu Pn-Wsch. i Pd-Wsch. (tam floty p2 i p3)
+	var targets: Array = RecruitRules.recruit_targets(state, "p1", "FLEET")
+	targets.sort()
+	check_eq(targets, ["arch_n", "arch_nw"], "pola do rekrutacji flot: przy własnych wyspach, bez obcych flot")
+	check_code(gsm.apply_recruit("p1", "FLEET", "arch_center"), "NOT_ADJACENT")
+	check_code(gsm.apply_recruit("p1", "FLEET", "arch_ne"), "SEA_OCCUPIED")
+	check_code(gsm.apply_recruit("p1", "FLEET", "arch_nw"), "")
+	check_eq(state["seas"]["arch_nw"], {"owner": "p1", "fleets": 1, "undead_fleets": 0}, "flota na pustym polu przejmuje je")
+	for expected_gold in [9, 7, 4]:
+		check_code(gsm.apply_recruit("p1", "FLEET", "arch_n"), "")
+		check_eq(_gold(gsm, "p1"), expected_gold, "złoto po kolejnej flocie")
+	check_eq(state["seas"]["arch_n"]["fleets"], 4, "trzy floty dołączają do floty startowej")
+	check_code(gsm.apply_recruit("p1", "FLEET", "arch_n"), "RECRUIT_LIMIT")
+	state["cycle"] = int(state["cycle"]) + 1
+	_turn(gsm, "POSEIDON", "p1")
+	state["seas"]["arch_n"]["fleets"] = 7  # razem z flotą na Morzu Pn-Zach.: 8
+	check_code(gsm.apply_recruit("p1", "FLEET", "arch_n"), "NO_UNITS_LEFT")
+
+
+## Zeus: kapłan za darmo, drugi za 4 JZ. Atena: filozof za darmo, drugi za 4 JZ. Odmowy nie zmieniają stanu.
+func test_recruit_cards_and_rejections() -> void:
+	var gsm := _logic_game()
+	_turn(gsm, "ZEUS", "p1")
+	var state: Dictionary = gsm._state
+	state["players"]["p1"]["gold"] = 10
+	check_code(gsm.apply_recruit("p1", "PRIEST", ""), "")
+	check_code(gsm.apply_recruit("p1", "PRIEST", ""), "")
+	check_eq([state["players"]["p1"]["priests"], _gold(gsm, "p1")], [2, 6], "kapłan za darmo, drugi za 4 JZ")
+	check_code(gsm.apply_recruit("p1", "PRIEST", ""), "RECRUIT_LIMIT")
+	_turn(gsm, "ATHENA", "p1")
+	check_code(gsm.apply_recruit("p1", "PHILOSOPHER", ""), "")
+	state["players"]["p1"]["gold"] = 3
+	var revision: int = state["revision"]
+	check_code(gsm.apply_recruit("p1", "PHILOSOPHER", ""), "CANNOT_AFFORD")
+	check_code(gsm.apply_recruit("p2", "PHILOSOPHER", ""), "NOT_YOUR_TURN")
+	check_code(gsm.apply_recruit("p1", "PRIEST", ""), "WRONG_GOD")
+	check_code(gsm.apply_recruit("p1", "DRAGON", ""), "WRONG_GOD")
+	_turn(gsm, "ARES", "p1")
+	check_code(gsm.apply_recruit("p1", "TROOP", "delos"), "NOT_OWNER")
+	check_code(gsm.apply_recruit("p1", "TROOP", "mykonos"), "NOT_OWNER")
+	check_code(gsm.apply_recruit("p1", "TROOP", "arch_n"), "WRONG_TERRITORY")
+	_turn(gsm, "APOLLO", "p1")
+	check_code(gsm.apply_recruit("p1", "TROOP", "andros"), "WRONG_GOD")
+	check_eq([state["revision"], state["players"]["p1"]["philosophers"], _gold(gsm, "p1")], [revision, 1, 3], "odmowy nie zmieniają stanu")
+
+
+## Komplet czterech różnych budynków, nawet na kilku wyspach, od razu zamienia się w Metropolię.
+## Staje ona na wyspie z największą liczbą różnych budynków kompletu. Zbędne budynki zostają.
+func test_metropolis_from_buildings() -> void:
+	var gsm := _logic_game()
+	_turn(gsm, "ATHENA", "p1")
+	var state: Dictionary = gsm._state
+	state["islands"]["andros"]["buildings"] = ["PORT", "TEMPLE", "FORTRESS"]
+	state["islands"]["syros"] = _isle("p1", 1, ["TEMPLE"])
+	check_code(gsm.apply_build("p1", "syros"), "")  # Uniwersytet domyka komplet
+	check_eq(state["islands"]["andros"]["buildings"], [], "Port, Świątynia i Forteca z Andros idą do Metropolii")
+	check_eq(state["islands"]["syros"]["buildings"], ["TEMPLE"], "Uniwersytet z Syros też, druga Świątynia zostaje")
+	check_eq([state["islands"]["andros"]["metropolis"], state["islands"]["syros"]["metropolis"]], [true, false], "Metropolia na Andros")
+	check(_has_event(state, {"type": "METROPOLIS", "player": "p1", "island": "andros", "origin": "BUILDINGS"}), "Metropolia w dzienniku")
+	check_eq(MoveRules.metropolises_of(state, "p1"), 1, "gracz ma jedną Metropolię")
+	gsm.queue_free()
+
+
+## Czwarty filozof: cała czwórka odchodzi, a gracz dostaje Metropolię. Gdy wszystkie jego
+## wyspy mają już Metropolię, nowa „zastępuje” starą, więc filozofowie po prostu przepadają.
+func test_metropolis_from_philosophers() -> void:
+	var gsm := _logic_game()
+	_turn(gsm, "ATHENA", "p1")
+	var state: Dictionary = gsm._state
+	state["players"]["p1"]["philosophers"] = 3
+	state["islands"]["syros"] = _isle("p1", 0, ["PORT", "TEMPLE"])
+	check_code(gsm.apply_recruit("p1", "PHILOSOPHER", ""), "")
+	check_eq(state["players"]["p1"]["philosophers"], 0, "czterej filozofowie odchodzą")
+	check_eq([state["islands"]["andros"]["metropolis"], state["islands"]["syros"]["metropolis"]], [false, true], "Metropolia na wyspie z budynkami")
+	check(_has_event(state, {"type": "METROPOLIS", "player": "p1", "island": "syros", "origin": "PHILOSOPHERS"}), "Metropolia z filozofów w dzienniku")
+	var solo := _logic_game()
+	_turn(solo, "ATHENA", "p1")
+	solo._state["islands"]["andros"]["metropolis"] = true
+	solo._state["players"]["p1"]["philosophers"] = 3
+	check_code(solo.apply_recruit("p1", "PHILOSOPHER", ""), "")
+	check_eq([solo._state["players"]["p1"]["philosophers"], MoveRules.metropolises_of(solo._state, "p1")], [0, 1], "bez wolnego miejsca filozofowie przepadają")
+	gsm.queue_free()
+	solo.queue_free()
+
+
+## Metropolia liczy się jak Forteca w bitwie o swoją wyspę i jak Port w bitwie na sąsiednim polu morskim.
+func test_metropolis_defense() -> void:
+	var gsm := _logic_game()
+	_turn(gsm, "ARES", "p1")
+	var state: Dictionary = gsm._state
+	state["islands"]["andros"]["troops"] = 4
+	state["seas"]["arch_ne"] = _sea("p1", 1)
+	state["islands"]["mykonos"]["metropolis"] = true
+	state["islands"]["paros"] = _isle("p2", 0)  # druga wyspa p2: Mykonos nie jest ostatnia
+	var reports: Array = []
+	gsm.battle_resolved.connect(func(resolved: Dictionary) -> void: reports.append(resolved))
+	check_code(gsm.apply_move("p1", "andros", "mykonos", 4), "")
+	var land: Dictionary = reports[0] if reports.size() > 0 else {}
+	for battle_round in land.get("rounds", []):
+		check_eq(battle_round["defender"]["modifiers"], [{"source": "METROPOLIS", "island": "mykonos", "value": 1}], "Metropolia jak Forteca")
+	_check_report_consistency(land, 4, 2)
+	gsm.queue_free()
+
+	var naval := _logic_game()
+	_turn(naval, "POSEIDON", "p1")
+	naval._state["seas"]["arch_n"]["fleets"] = 3
+	naval._state["islands"]["mykonos"]["metropolis"] = true
+	var naval_reports: Array = []
+	naval.battle_resolved.connect(func(resolved: Dictionary) -> void: naval_reports.append(resolved))
+	check_code(naval.apply_move("p1", "arch_n", "arch_ne", 3), "")
+	var sea: Dictionary = naval_reports[0] if naval_reports.size() > 0 else {}
+	check_eq(sea.get("rounds", [{}])[0].get("defender", {}).get("modifiers", []), [{"source": "METROPOLIS", "island": "mykonos", "value": 1}], "Metropolia jak Port przy Morzu Pn-Wsch.")
+	naval.queue_free()
+
+
+## Koniec cyklu: wygrywa gracz z 2 Metropoliami. Przy kilku takich graczach wygrywa ten, kto ma
+## najwięcej złota, a przy równym złocie wygrywają wszyscy. Bez zwycięzcy zaczyna się nowy cykl.
+func test_victory_at_cycle_end() -> void:
+	var gsm := _logic_game()
+	_turn(gsm, "ARES", "p1")
+	var state: Dictionary = gsm._state
+	for island_id in ["mykonos", "naxos"]:
+		state["islands"][island_id]["metropolis"] = true
+	state["islands"]["paros"] = _isle("p2", 1)
+	state["islands"]["paros"]["metropolis"] = true
+	state["islands"]["milos"] = _isle("p3", 1)
+	state["islands"]["milos"]["metropolis"] = true
+	state["players"]["p2"]["gold"] = 3
+	state["players"]["p3"]["gold"] = 7
+	check_code(gsm.apply_end_turn("p1"), "")
+	check_eq([state["phase"], state.get("winners")], ["GAME_OVER", ["p3"]], "dwóch z 2 Metropoliami: wygrywa bogatszy")
+	check(_has_event(state, {"type": "GAME_OVER", "winners": ["p3"]}), "koniec gry w dzienniku")
+	check(not gsm.is_game_running(), "partia zakończona")
+	check_code(gsm.apply_end_turn("p1"), "NOT_ACTIONS")
+	gsm.queue_free()
+
+	var tie := _logic_game()
+	_turn(tie, "ARES", "p1")
+	for island_id in ["mykonos", "naxos"]:
+		tie._state["islands"][island_id]["metropolis"] = true
+	tie._state["islands"]["paros"] = _isle("p2", 1)
+	tie._state["islands"]["paros"]["metropolis"] = true
+	tie._state["islands"]["milos"] = _isle("p3", 1)
+	tie._state["islands"]["milos"]["metropolis"] = true
+	check_code(tie.apply_end_turn("p1"), "")
+	check_eq(tie._state.get("winners"), ["p2", "p3"], "równe złoto: wygrywają obaj")
+	tie.queue_free()
+
+	var ongoing := _logic_game()
+	_turn(ongoing, "ARES", "p1")
+	ongoing._state["islands"]["mykonos"]["metropolis"] = true
+	check_code(ongoing.apply_end_turn("p1"), "")
+	check_eq([ongoing._state["phase"], ongoing._state["cycle"], ongoing._state.get("winners")], ["BIDDING", 2, []], "jedna Metropolia to za mało: nowy cykl")
+	ongoing.queue_free()
+
+
+## Reguła ostatniej wyspy ma wyjątek: atak jest dozwolony, gdy po zdobyciu wyspy atakujący miałby
+## 2 Metropolie (liczy się też Metropolia na zdobywanej wyspie). Plansza podświetla dokładnie to, co przyjmie serwer.
+func test_last_island_metropolis_exception() -> void:
+	var gsm := _logic_game()
+	_turn(gsm, "ARES", "p1")
+	var state: Dictionary = gsm._state
+	state["islands"]["andros"]["troops"] = 3
+	state["seas"]["arch_ne"] = _sea("p1", 1)  # most do Mykonos, jedynej wyspy p2
+	check(not MoveRules.move_targets(state, "p1", "andros", MoveRules.MOVE_TROOPS).has("mykonos"), "ostatnia wyspa p2 chroniona")
+	check_code(gsm.apply_move("p1", "andros", "mykonos", 3), "LAST_ISLAND_PROTECTED")
+	state["islands"]["andros"]["metropolis"] = true
+	check_code(gsm.apply_move("p1", "andros", "mykonos", 3), "LAST_ISLAND_PROTECTED")
+	state["islands"]["mykonos"]["metropolis"] = true
+	check_eq(MoveRules.move_targets(state, "p1", "andros", MoveRules.MOVE_TROOPS).get("mykonos", ""), "ATTACK", "zdobycie da drugą Metropolię: plansza pozwala na atak")
+	check_code(gsm.apply_move("p1", "andros", "mykonos", 3), "")
+	gsm.queue_free()
+
+
+## Tor stworów: trzy karty z potasowanej talii podstawki. Na początku cyklu karta z pola za 2 JZ
+## odchodzi na stos, pozostałe zsuwają się w stronę tańszych pól, a wolne pola od strony 4 JZ
+## uzupełnia talia (pusta talia: przetasowany stos). Projekcja nie zdradza kolejności talii.
+func test_creature_market() -> void:
+	var gsm := _logic_game()
+	var creatures: Dictionary = gsm._state["creatures"]
+	check(creatures["slots"].all(func(key: String) -> bool: return key != ""), "trzy karty na torze od pierwszego cyklu")
+	var cards: Array = creatures["slots"] + creatures["deck"]
+	cards.sort()
+	check_eq(cards, ["GIANT", "HARPY", "KRAKEN", "MINOTAUR", "PEGASUS", "PEGASUS"], "tor i talia to karty stworów podstawki")
+	creatures["slots"] = ["HARPY", "", "KRAKEN"]  # karta za 3 JZ kupiona w tym cyklu
+	creatures["deck"] = ["GIANT", "MINOTAUR"]
+	creatures["discard"] = []
+	gsm._refresh_creatures()
+	check_eq(creatures["slots"], ["KRAKEN", "GIANT", "MINOTAUR"], "Harpia odchodzi, Kraken zsuwa się na 2 JZ, nowe karty od strony 4 JZ")
+	check_eq([creatures["deck"], creatures["discard"]], [[], ["HARPY"]], "talia pusta, Harpia na stosie")
+	creatures["discard"] = []
+	gsm._refresh_creatures()
+	check_eq([creatures["slots"], creatures["deck"], creatures["discard"]], [["GIANT", "MINOTAUR", "KRAKEN"], [], []], "pusta talia: stos staje się nową talią")
+	var view := gsm.project_for("p2")
+	check(not view["creatures"].has("deck"), "projekcja bez kolejności talii")
+	check_eq(view["creatures"].get("deck_size", -1), 0, "projekcja zna tylko liczbę kart w talii")
+	check(gsm._state["creatures"].has("deck"), "projekcja nie zmienia stanu serwera")
+	gsm.queue_free()
+
+
+## Zakup w turze dowolnego boga (także Apolla): 2, 3 albo 4 JZ według pola toru, minus 1 JZ za każdą
+## Świątynię gracza (Metropolia liczy się jak Świątynia), ale co najmniej 1 JZ. Zniżka działa przy
+## jednym zakupie w turze. Kupiona karta trafia na stos, a jej pole zostaje puste do nowego cyklu.
+func test_buy_creature() -> void:
+	var gsm := _logic_game()
+	_turn(gsm, "APOLLO", "p1")
+	var state: Dictionary = gsm._state
+	var creatures: Dictionary = state["creatures"]
+	creatures["slots"] = ["HARPY", "GIANT", "MINOTAUR"]
+	creatures["discard"] = []
+	state["players"]["p1"]["gold"] = 20
+	state["islands"]["andros"]["buildings"] = ["TEMPLE", "TEMPLE"]
+	state["islands"]["mykonos"]["buildings"] = ["PORT"]
+	check_eq([CreatureRules.price(state, "p1", 0), CreatureRules.price(state, "p1", 1), CreatureRules.price(state, "p1", 2)], [1, 1, 2], "dwie Świątynie: 2→1 (minimum), 3→1, 4→2 JZ")
+	check_code(gsm.apply_buy_creature("p1", 2, {"island": "andros"}), "")
+	check_eq(_gold(gsm, "p1"), 18, "Minotaur za 4 - 2 JZ")
+	check_eq(CreatureRules.price(state, "p1", 1), 3, "zniżka ze Świątyń tylko przy jednym zakupie w turze")
+	check_code(gsm.apply_buy_creature("p1", 1, {"island": "mykonos", "building": "PORT"}), "")
+	check_eq(_gold(gsm, "p1"), 15, "Gigant za pełne 3 JZ")
+	check_eq([creatures["slots"], creatures["discard"]], [["HARPY", "", ""], ["MINOTAUR", "GIANT"]], "kupione karty na stosie, pola puste")
+	check(_has_event(state, {"type": "CREATURE", "player": "p1", "creature": "GIANT", "cost": 3}), "zakup w dzienniku")
+	var revision: int = state["revision"]
+	check_code(gsm.apply_buy_creature("p1", 1, {}), "NO_CARD")
+	check_code(gsm.apply_buy_creature("p1", 3, {}), "INVALID_SLOT")
+	check_code(gsm.apply_buy_creature("p2", 0, {"island": "andros"}), "NOT_YOUR_TURN")
+	state["players"]["p1"]["gold"] = 1
+	check_code(gsm.apply_buy_creature("p1", 0, {"island": "andros"}), "CANNOT_AFFORD")
+	check_eq(state["revision"], revision, "odmowy nie zmieniają stanu")
+	state["islands"]["mykonos"]["metropolis"] = true
+	check_eq(CreatureRules.price(state, "p2", 2), 3, "Metropolia obniża cenę jak Świątynia")
+	gsm.queue_free()
+
+
+## Akcja specjalna Zeusa: za 1 JZ karta z toru idzie na stos, a jej miejsce zajmuje wierzch talii.
+func test_zeus_swap() -> void:
+	var gsm := _logic_game()
+	_turn(gsm, "ZEUS", "p1")
+	var creatures: Dictionary = gsm._state["creatures"]
+	creatures["slots"] = ["HARPY", "GIANT", "KRAKEN"]
+	creatures["deck"] = ["PEGASUS", "MINOTAUR"]
+	creatures["discard"] = []
+	check_code(gsm.apply_swap_creature("p1", 1), "")
+	check_eq([creatures["slots"], creatures["deck"], creatures["discard"], _gold(gsm, "p1")], [["HARPY", "PEGASUS", "KRAKEN"], ["MINOTAUR"], ["GIANT"], 4], "Gigant na stos, Pegaz z wierzchu talii, koszt 1 JZ")
+	check_code(gsm.apply_swap_creature("p1", 1), "")
+	check_eq([creatures["slots"][1], _gold(gsm, "p1")], ["MINOTAUR", 3], "kolejna wymiana za kolejny 1 JZ")
+	creatures["slots"][0] = ""
+	check_code(gsm.apply_swap_creature("p1", 0), "NO_CARD")
+	gsm._state["players"]["p1"]["gold"] = 0
+	check_code(gsm.apply_swap_creature("p1", 2), "CANNOT_AFFORD")
+	_turn(gsm, "ATHENA", "p1")
+	check_code(gsm.apply_swap_creature("p1", 2), "WRONG_GOD")
+	gsm.queue_free()
+
+
+## Gigant niszczy budynek (Metropolia nie jest budynkiem), Harpia zabiera jeden oddział, a Pegaz
+## przenosi oddziały z własnej wyspy na dowolną wyspę bez łańcucha flot (reguły lądowania jak w ruchu).
+func test_creature_effects() -> void:
+	var gsm := _logic_game()
+	_turn(gsm, "ATHENA", "p1")
+	var state: Dictionary = gsm._state
+	state["players"]["p1"]["gold"] = 30
+	state["creatures"]["slots"] = ["GIANT", "HARPY", "PEGASUS"]
+	state["islands"]["mykonos"]["buildings"] = ["PORT"]
+	state["islands"]["mykonos"]["metropolis"] = true
+	check_code(gsm.apply_buy_creature("p1", 0, {"island": "mykonos", "building": "METROPOLIS"}), "NO_BUILDING")
+	check_code(gsm.apply_buy_creature("p1", 0, {"island": "mykonos"}), "INVALID_PARAMS")
+	check_code(gsm.apply_buy_creature("p1", 0, {"island": "mykonos", "building": "PORT"}), "")
+	check_eq([state["islands"]["mykonos"]["buildings"], state["islands"]["mykonos"]["metropolis"]], [[], true], "Gigant niszczy Port, Metropolia zostaje")
+	check_code(gsm.apply_buy_creature("p1", 1, {"island": "delos"}), "NO_UNITS")
+	check_code(gsm.apply_buy_creature("p1", 1, {"island": "mykonos"}), "")
+	check_eq([state["islands"]["mykonos"]["troops"], state["islands"]["mykonos"]["owner"]], [1, "p2"], "Harpia zabiera jeden oddział")
+	check_code(gsm.apply_buy_creature("p1", 2, {"from": "andros", "to": "mykonos", "count": 2}), "LAST_ISLAND_PROTECTED")
+	check_code(gsm.apply_buy_creature("p1", 2, {"from": "andros", "to": "delos", "count": 3}), "NOT_ENOUGH_UNITS")
+	check_code(gsm.apply_buy_creature("p1", 2, {"from": "mykonos", "to": "delos", "count": 1}), "NOT_OWNER")
+	check_code(gsm.apply_buy_creature("p1", 2, {"from": "andros", "to": "delos"}), "INVALID_PARAMS")
+	check_code(gsm.apply_buy_creature("p1", 2, {"from": "andros", "to": "delos", "count": 2}), "")
+	check_eq([state["islands"]["delos"]["owner"], state["islands"]["delos"]["troops"], state["islands"]["andros"]["troops"]], ["p1", 2, 0], "Pegaz przenosi oddziały na Delos bez floty na Morzu Centralnym")
+	check_eq([state["islands"]["andros"]["owner"], _gold(gsm, "p1")], ["p1", 21], "opuszczona wyspa zostaje przy graczu; stwory za 2 + 3 + 4 JZ")
+	gsm.queue_free()
+
+	var attack := _logic_game()
+	_turn(attack, "APOLLO", "p1")
+	attack._state["creatures"]["slots"] = ["PEGASUS", "", ""]
+	attack._state["islands"]["andros"]["troops"] = 3
+	attack._state["islands"]["paros"] = _isle("p2", 1)
+	var reports: Array = []
+	attack.battle_resolved.connect(func(resolved: Dictionary) -> void: reports.append(resolved))
+	check_code(attack.apply_buy_creature("p1", 0, {"from": "andros", "to": "mykonos", "count": 3}), "")
+	check_eq(reports.size(), 1, "Pegaz na wyspę z oddziałami rywala: bitwa")
+	_check_report_consistency(reports[0] if reports.size() > 0 else {}, 3, 2)
+	attack.queue_free()
+
+
+## Kraken niszczy floty na polu, na które wchodzi, i na polach dodatkowego ruchu (+1 JZ za pole).
+## Zostaje na planszy: żadna flota nie wpłynie na jego pole ani tam nie powstanie.
+func test_kraken() -> void:
+	var gsm := _logic_game()
+	_turn(gsm, "ARES", "p1")
+	var state: Dictionary = gsm._state
+	state["players"]["p1"]["gold"] = 20
+	state["creatures"]["slots"] = ["KRAKEN", "", ""]
+	state["seas"]["arch_center"] = _sea("p3", 2, 1)
+	check_code(gsm.apply_buy_creature("p1", 0, {"sea": "arch_center", "path": ["arch_ne", "atlantis"]}), "INVALID_PATH")
+	check_code(gsm.apply_buy_creature("p1", 0, {"sea": "arch_center", "path": ["arch_nw", "arch_se"]}), "INVALID_PATH")
+	check_code(gsm.apply_buy_creature("p1", 0, {"sea": "arch_center", "path": ["arch_ne"]}), "")
+	check_eq(_gold(gsm, "p1"), 17, "Kraken 2 JZ + 1 JZ za pole ruchu")
+	check_eq([state["seas"]["arch_center"], state["seas"]["arch_ne"]], [_sea("", 0), _sea("", 0)], "floty (także nieumarłe) na trasie Krakena zniszczone")
+	check_eq(state["kraken"], "arch_ne", "Kraken zostaje na ostatnim polu trasy")
+	_turn(gsm, "POSEIDON", "p1")
+	check(not MoveRules.fleet_reach(state, "p1", "arch_n").has("arch_ne"), "flota nie wpłynie na pole Krakena")
+	check_code(gsm.apply_move("p1", "arch_n", "arch_ne", 1), "OUT_OF_RANGE")
+	state["islands"]["paros"] = _isle("p1", 1)  # Paros leży przy Morzu Pn-Wsch.
+	check_code(gsm.apply_recruit("p1", "FLEET", "arch_ne"), "KRAKEN_BLOCKS")
+	gsm.queue_free()
+
+
+## Minotaur staje na wyspie kupującego i broni jej jak 2 oddziały (ginie po oddziałach). Wyspa
+## z samym Minotaurem jest broniona. Minotaur znika na początku następnej tury kupującego.
+func test_minotaur() -> void:
+	var gsm := _logic_game()
+	var state: Dictionary = gsm._state
+	_turn(gsm, "ATHENA", "p2")
+	state["turns"] = [{"god": "ATHENA", "player": "p2"}, {"god": "ARES", "player": "p1"}, {"god": "ZEUS", "player": "p2"}]
+	state["creatures"]["slots"] = ["MINOTAUR", "", ""]
+	check_code(gsm.apply_buy_creature("p2", 0, {"island": "andros"}), "NOT_OWNER")
+	check_code(gsm.apply_buy_creature("p2", 0, {"island": "mykonos"}), "")
+	check_eq(state["minotaur"], {"island": "mykonos", "player": "p2"}, "Minotaur na Mykonos")
+	check_code(gsm.apply_end_turn("p2"), "")
+	state["islands"]["mykonos"]["troops"] = 0
+	state["islands"]["paros"] = _isle("p2", 1)  # Mykonos nie jest ostatnią wyspą p2
+	state["islands"]["andros"]["troops"] = 3
+	state["seas"]["arch_ne"] = _sea("p1", 1)
+	check_eq(MoveRules.move_targets(state, "p1", "andros", MoveRules.MOVE_TROOPS).get("mykonos", ""), "ATTACK", "wyspa z samym Minotaurem jest broniona")
+	var reports: Array = []
+	gsm.battle_resolved.connect(func(resolved: Dictionary) -> void: reports.append(resolved))
+	check_code(gsm.apply_move("p1", "andros", "mykonos", 3), "")
+	var report: Dictionary = reports[0] if reports.size() > 0 else {}
+	check_eq(report.get("rounds", [{}])[0].get("defender", {}).get("units", -1), 2, "Minotaur liczy się jak 2 oddziały")
+	var mykonos: Dictionary = state["islands"]["mykonos"]
+	if report.get("outcome", "") == "DEFENDER_WON":
+		check_eq([mykonos["owner"], state["minotaur"]], ["p2", {"island": "mykonos", "player": "p2"}], "obroniony Minotaur zostaje")
+	else:
+		check_eq(state["minotaur"], {}, "pokonany Minotaur znika z planszy")
+	gsm.queue_free()
+
+	# Wygasanie bez bitwy: Minotaur p2 przetrwa turę p1 i znika, gdy zaczyna się następna tura p2.
+	var timed := _logic_game()
+	_turn(timed, "ATHENA", "p2")
+	timed._state["turns"] = [{"god": "ATHENA", "player": "p2"}, {"god": "ARES", "player": "p1"}, {"god": "ZEUS", "player": "p2"}]
+	timed._state["creatures"]["slots"] = ["MINOTAUR", "", ""]
+	check_code(timed.apply_buy_creature("p2", 0, {"island": "mykonos"}), "")
+	check_code(timed.apply_end_turn("p2"), "")
+	check_eq(timed._state["minotaur"], {"island": "mykonos", "player": "p2"}, "w turze innego gracza Minotaur stoi dalej")
+	check_code(timed.apply_end_turn("p1"), "")
+	check_eq(timed._state["minotaur"], {}, "Minotaur znika na początku następnej tury kupującego")
+	timed.queue_free()
+
+
 func test_new_game() -> void:
 	var gsm := _logic_game()
 	var state: Dictionary = gsm._state
@@ -188,7 +592,7 @@ func test_new_game() -> void:
 		var player_id := "p%d" % (i + 1)
 		var city: Array = GameState.MAP["cities"][i]
 		check_eq(state["players"][player_id]["gold"], GameState.STARTING_GOLD, "złoto startowe %s" % player_id)
-		check_eq(state["islands"][city[0]], {"owner": player_id, "troops": 2, "undead_troops": 0, "buildings": [], "monument": ""}, "miasto %s" % player_id)
+		check_eq(state["islands"][city[0]], {"owner": player_id, "troops": 2, "undead_troops": 0, "buildings": [], "monument": "", "metropolis": false}, "miasto %s" % player_id)
 		check_eq(state["seas"][city[1]], {"owner": player_id, "fleets": 1, "undead_fleets": 0}, "flota %s" % player_id)
 
 
@@ -250,7 +654,7 @@ func test_move_validation() -> void:
 	check_code(gsm.apply_move("p1", "andros", "syros", 1), "CANNOT_AFFORD")
 	gsm._state["players"]["p1"]["gold"] = 5
 	check_code(gsm.apply_move("p1", "andros", "syros", 1), "")
-	check_eq(gsm._state["islands"]["syros"], {"owner": "p1", "troops": 1, "undead_troops": 0, "buildings": [], "monument": ""}, "zajęcie wyspy neutralnej")
+	check_eq(gsm._state["islands"]["syros"], {"owner": "p1", "troops": 1, "undead_troops": 0, "buildings": [], "monument": "", "metropolis": false}, "zajęcie wyspy neutralnej")
 	check_eq(gsm._state["islands"]["andros"]["troops"], 1, "oddział opuścił Andros")
 	check_eq(_gold(gsm, "p1"), 4, "ruch kosztuje 1 JZ")
 
@@ -621,6 +1025,39 @@ func test_network_battle() -> void:
 	_free(table)
 
 
+## Nowe akcje tury boga przez sieć: klient wysyła intencje RPC, serwer wykonuje je na pełnym stanie
+## i rozsyła projekcje. Odmowa wraca tylko do nadawcy, a talia stworów zostaje tajna.
+func test_network_god_actions() -> void:
+	var table := await _started_table()
+	var host: Machine = table[0]
+	var client: Machine = table[1]
+	var me := client.player_id()
+	var state: Dictionary = host.state._state
+	var target := _city_of(state, host.player_id())
+	state["phase"] = "ACTIONS"
+	state["turns"] = [{"god": "ZEUS", "player": me}]
+	state["turn_index"] = 0
+	state["players"][me]["gold"] = 10
+	state["creatures"]["slots"] = ["HARPY", "GIANT", "KRAKEN"]
+	state["creatures"]["deck"] = ["PEGASUS"]
+	host.state._commit()
+	check(await _until(func() -> bool: return client.state.view.get("revision", -1) == state["revision"]), "klient ma scenariusz od serwera")
+	client.net.recruit("PRIEST", "")
+	check(await _until(func() -> bool: return int(state["players"][me]["priests"]) == 1), "serwer przyjął rekrutację kapłana przez RPC")
+	client.net.swap_creature(1)
+	check(await _until(func() -> bool: return state["creatures"]["slots"][1] == "PEGASUS"), "serwer wymienił kartę Gigant na Pegaza")
+	client.net.buy_creature(0, {"island": target})
+	check(await _until(func() -> bool: return state["creatures"]["slots"][0] == ""), "serwer sprzedał Harpię")
+	check(await _until(func() -> bool: return client.state.view.get("revision", -1) == state["revision"]), "klient dostał nowy stan")
+	var view: Dictionary = client.state.view
+	check_eq([view["islands"][target]["troops"], view["players"][me]["gold"], view["players"][me]["priests"]], [1, 7, 1], "projekcja klienta: Harpia zabrała oddział, zapłacono 1 + 2 JZ")
+	check(not view["creatures"].has("deck"), "klient nie zna kolejności talii")
+	client.net.recruit("TROOP", _city_of(state, me))
+	check(await _until(func() -> bool: return client.rejections.has("WRONG_GOD")), "odmowa wraca do nadawcy")
+	check(table[2].rejections.is_empty(), "pozostali gracze nie dostają cudzych odmów")
+	_free(table)
+
+
 func test_disconnect_and_reconnect() -> void:
 	var table := await _started_table()
 	var host: Machine = table[0]
@@ -742,6 +1179,33 @@ func test_main_scene() -> void:
 # =============================================================================
 # LAN Discovery (tylko 127.0.0.1)
 # =============================================================================
+
+## Dziennik partii w Main opisuje zdarzenia nowych mechanik słowami, a nie surowym słownikiem
+## (zob. `_describe`), a status po końcu gry podaje zwycięzców.
+func test_main_log_describes_new_events() -> void:
+	var main: Control = load("res://scenes/Main.tscn").instantiate()
+	var view := {"you": "p1", "players": {"p1": {"name": "Ariadna"}, "p2": {"name": "Tezeusz"}}, "winners": ["p1"], "phase": "GAME_OVER"}
+	var events := [
+		{"type": "RECRUIT", "player": "p1", "kind": "TROOP", "target": "andros", "cost": 2},
+		{"type": "RECRUIT", "player": "p1", "kind": "PRIEST", "target": "", "cost": 0},
+		{"type": "METROPOLIS", "player": "p1", "island": "andros", "origin": "BUILDINGS"},
+		{"type": "METROPOLIS", "player": "p1", "island": "", "origin": "PHILOSOPHERS"},
+		{"type": "CREATURE", "player": "p1", "creature": "KRAKEN", "cost": 3},
+		{"type": "SWAP_CREATURE", "player": "p1", "discarded": "GIANT", "drawn": ""},
+		{"type": "GIANT", "player": "p1", "island": "naxos", "building": "PORT"},
+		{"type": "HARPY", "player": "p1", "island": "naxos"},
+		{"type": "KRAKEN", "player": "p1", "sea": "arch_ne", "destroyed": [{"sea": "arch_ne", "player": "p2", "fleets": 1}]},
+		{"type": "MINOTAUR", "player": "p1", "island": "andros"},
+		{"type": "MINOTAUR_GONE", "player": "p1", "island": "andros"},
+		{"type": "MOVE", "player": "p1", "from": "andros", "to": "delos", "count": 2, "via": "PEGASUS"},
+		{"type": "GAME_OVER", "winners": ["p1"]},
+	]
+	for event: Dictionary in events:
+		var text: String = main._describe(view, event)
+		check(text != "" and text != str(event), "opis zdarzenia %s: %s" % [event["type"], text])
+	check(main._phase_name(view).contains("Ariadna"), "status po końcu gry podaje zwycięzcę")
+	main.free()
+
 
 func test_beacon_packet() -> void:
 	var info := {"server_name": "Archipelag", "port": 8910, "current_players": 2, "max_players": 5, "has_hades": true, "has_monuments": false, "in_game": false}
@@ -948,6 +1412,8 @@ func test_territory_node() -> void:
 	node.apply_state({"owner": "p2", "troops": 2, "undead_troops": 1, "buildings": ["PORT", "FORTRESS"], "monument": "COLOSSUS"}, red)
 	check_eq([node.owner_player_id, node.units, ",".join(node.buildings), node.monument], ["p2", {"troops": 2, "undead_troops": 1}, "PORT,FORTRESS", "COLOSSUS"], "stan pola z projekcji")
 	check_eq(node.label_text(), "Delos\noddz. 2 · †1\nP F mon. Colossus", "etykieta: nazwa, oddziały, nieumarli, budynki, monument")
+	node.apply_state({"owner": "p2", "troops": 1, "undead_troops": 0, "buildings": ["TEMPLE"], "monument": "", "metropolis": true}, red)
+	check_eq(node.label_text(), "Delos\noddz. 1\nŚ M", "etykieta: Metropolia (M) obok budynków")
 	var fill_material := fill.material as ShaderMaterial
 	check_eq(fill_material.get_shader_parameter("base_color"), TerritoryNode.LAND_COLOR.lerp(red, 0.65), "kolor właściciela w shaderze")
 	check_eq(fill_material.get_shader_parameter("highlight_strength"), 0.0, "bez oznaczenia bez podświetlenia")

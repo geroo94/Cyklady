@@ -15,7 +15,8 @@ extends Control
 ## Skrypt stanu gry jako typ: jego funkcje statyczne (np. actor_of) wołamy na typie, a nie na autoloadzie.
 const GameState := preload("res://scripts/autoload/GameStateManager.gd")
 const OUTCOMES := {"ATTACKER_WON": "wygrywa atakujący", "DEFENDER_WON": "wygrywa obrońca", "MUTUAL_DESTRUCTION": "obie strony zniszczone"}
-const MODIFIERS := {"FORTRESS": "Forteca", "PORT": "Port"}
+const MODIFIERS := {"FORTRESS": "Forteca", "PORT": "Port", "METROPOLIS": "Metropolia"}
+const RECRUITS := {"TROOP": "oddział", "FLEET": "flota", "PRIEST": "kapłan", "PHILOSOPHER": "filozof"}
 
 @onready var _browser: Control = %Browser
 @onready var _waiting: Control = %WaitingRoom
@@ -204,9 +205,32 @@ func _describe(view: Dictionary, event: Dictionary) -> String:
 		"BIDDING_CLOSED":
 			return "Licytacja zamknięta. Zaczynają się tury bogów."
 		"MOVE":
-			return "%s: ruch %s → %s (%d)" % [who, event["from"], event["to"], event["count"]]
+			return "%s: ruch %s → %s (%d)%s" % [who, event["from"], event["to"], event["count"], " na Pegazie" if event.get("via", "") == "PEGASUS" else ""]
 		"BUILD":
 			return "%s buduje %s na %s" % [who, event["building"], event["island"]]
+		"RECRUIT":
+			var place := " na %s" % event["target"] if event["target"] != "" else ""
+			return "%s: nowy %s%s (%d JZ)" % [who, RECRUITS.get(event["kind"], event["kind"]), place, event["cost"]]
+		"METROPOLIS":
+			if event["island"] == "":
+				return "%s: nowa Metropolia zastępuje starą (brak wyspy bez Metropolii)" % who
+			return "[b]%s zakłada Metropolię na %s[/b]" % [who, event["island"]]
+		"CREATURE":
+			return "%s przyzywa stwora: %s (%d JZ)" % [who, event["creature"], event["cost"]]
+		"SWAP_CREATURE":
+			return "%s (Zeus) odrzuca kartę %s, na tor wchodzi %s" % [who, event["discarded"], event["drawn"] if event["drawn"] != "" else "–"]
+		"GIANT":
+			return "Gigant niszczy %s na %s" % [event["building"], event["island"]]
+		"HARPY":
+			return "Harpia porywa oddział z %s" % event["island"]
+		"KRAKEN":
+			return "Kraken wynurza się na %s (zniszczone pola z flotami: %d)" % [event["sea"], event["destroyed"].size()]
+		"MINOTAUR":
+			return "Minotaur strzeże wyspy %s" % event["island"]
+		"MINOTAUR_GONE":
+			return "Minotaur opuszcza wyspę %s" % event["island"]
+		"GAME_OVER":
+			return "[b]Koniec gry! Wygrywa: %s[/b]" % _winner_names(view)
 		"BATTLE":
 			return "Bitwa o %s: %s" % [event["location"], OUTCOMES.get(event["outcome"], event["outcome"])]
 		"END_TURN":
@@ -231,7 +255,16 @@ func _phase_name(view: Dictionary) -> String:
 			return "licytacja"
 		"ACTIONS":
 			return "tura boga %s" % GameState.god_of(view)
+		"GAME_OVER":
+			return "koniec gry, wygrywa: %s" % _winner_names(view)
 	return String(view["phase"])
+
+
+func _winner_names(view: Dictionary) -> String:
+	var names := PackedStringArray()
+	for winner in view.get("winners", []):
+		names.append(_player_name_in(view, winner))
+	return ", ".join(names)
 
 
 func _player_name_in(view: Dictionary, player_id: String) -> String:

@@ -38,6 +38,7 @@ npm run check      # tsc (strict) + testy (node --test)
 | Wersja Godot 4: plansza, wybór pól i podświetlanie ruchów | `godot/scenes/board/Board.tscn`, `godot/scripts/ui/` (`board.gd` z `highlight_valid_moves`, `TerritoryNode.gd`), `godot/assets/shaders/territory.gdshader`, reguły wspólne dla serwera i planszy w `godot/scripts/core/MoveRules.gd`; opis w rozdziale 3 [godot/README.md](godot/README.md) |
 | Wersja Godot 4: licytacja (tory ofiar, kapłani, Apollo, przebicie) | `godot/scenes/ui/BiddingBoard.tscn`, `godot/scripts/ui/` (`BiddingBoardUI.gd`, `OfferingTrack.gd`), reguły wspólne dla serwera i panelu w `godot/scripts/core/BidRules.gd`, powiadomienie `rpc_notify_bid_displaced` → `GameStateManager.bid_displaced`; opis w rozdziale 4 [godot/README.md](godot/README.md) |
 | Wersja Godot 4: baza treści (bogowie, stwory i herosi, Monumenty) | `godot/scripts/autoload/GameData.gd` (autoload `GameData`): stałe `GODS`, `CREATURES`, `HEROES`, `MONUMENTS`, talie zależne od dodatków, `validate()`; plan prac w [TASKS.md](TASKS.md) |
+| Wersja Godot 4: rekrutacja, tor stworów, Metropolie i koniec gry | `godot/scripts/core/RecruitRules.gd` i `godot/scripts/core/CreatureRules.gd` (reguły wspólne dla serwera i UI), `GameStateManager.apply_recruit`, `apply_buy_creature`, `apply_swap_creature`, efekty stanowe (Metropolie) w `_commit`, RPC `rpc_recruit`, `rpc_buy_creature`, `rpc_swap_creature`; opis w rozdziale 10 [godot/README.md](godot/README.md) |
 | Mapa demonstracyjna dla 3–5 graczy z lobby | `src/examples/archipelago.ts` (`archipelagoLobby`), przykłady `lanServer.ts` i `lanBrowser.ts` |
 | Maszyna stanów | `phases.ts` (stany i konteksty), `stateMachine.ts` (przejścia, strażnicy, haki) |
 
@@ -242,6 +243,8 @@ Oznaczone w kodzie jako `[zweryfikuj]` albo opisane w komentarzach:
    i budowa podstawki, zakup stworów z wywołaniem ich efektów, tura Apolla
    ze znacznikiem dobrobytu) oraz orkiestrator, który po każdej komendzie
    stosuje efekty stanowe.
+   W wersji Godot rekrutacja, stwory, Metropolie i koniec gry już działają
+   (zob. TASKS.md), a silnik TS może je przejąć z tamtych reguł.
 2. **Sieć:** limity liczby wiadomości, tryb obserwatora, wybór mapy
    w lobby i sprawdzalne rzuty (zob. SIEC.md, sekcja 12).
 3. **Dane z pudełka:** mapy dla 2–5 graczy, pełny katalog kart, Monumentów
