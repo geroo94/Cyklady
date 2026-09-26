@@ -97,6 +97,7 @@ func _ready() -> void:
 		["Rekrutacja: kapłani Zeusa i filozofowie Ateny (0 i 4 JZ), odmowy bez zmiany stanu", test_recruit_cards_and_rejections],
 		["Metropolia z kompletu 4 różnych budynków (także z kilku wysp), nadmiarowe budynki zostają", test_metropolis_from_buildings],
 		["Metropolia z 4 filozofów; bez wolnego miejsca filozofowie przepadają", test_metropolis_from_philosophers],
+		["Metropolia: człowiek z kilkoma wyspami wybiera miejsce, koniec tury stawia ją sam", test_metropolis_site_choice],
 		["Bitwa: Metropolia broni jak Forteca (ląd) i jak Port (morze)", test_metropolis_defense],
 		["Koniec cyklu: 2 Metropolie wygrywają, remis rozstrzyga złoto, bez zwycięzcy nowy cykl", test_victory_at_cycle_end],
 		["Ostatnia wyspa: atak dozwolony, gdy da atakującemu drugą Metropolię (serwer = plansza)", test_last_island_metropolis_exception],
@@ -124,6 +125,7 @@ func _ready() -> void:
 		["LAN: przebicie w licytacji przez sieć", test_network_outbid],
 		["LAN: bitwa – ten sam raport u wszystkich, stan zgodny", test_network_battle],
 		["LAN: rekrutacja, wymiana karty (Zeus) i zakup stwora przez RPC; odmowa tylko do nadawcy", test_network_god_actions],
+		["LAN: serwer czeka na wybór wyspy dla Metropolii, a klient wysyła go przez RPC", test_network_metropolis_choice],
 		["LAN: rozłączenie w trakcie partii i powrót z pełną migawką", test_disconnect_and_reconnect],
 		["LAN: okno powrotu mija – AI przejmuje miejsce i gra, żeton wygasa", test_reconnect_window_expires],
 		["LAN: nowy gracz bez żetonu nie wejdzie do trwającej partii", test_late_join_refused],
@@ -141,6 +143,7 @@ func _ready() -> void:
 		["Plansza: TerritoryNode – stan, etykieta, shader, najechanie, kliknięcie, zapis sceny", test_territory_node],
 		["Plansza: scena zgodna z mapą (pola, typy, sąsiedzi, geometria)", test_board_scene],
 		["Plansza: mysz przez SubViewport – najechanie, wybór, podświetlenie, rozkaz, anulowanie", test_board_picking],
+		["Plansza: tryb wskazywania pola – tylko podane cele, wybór sygnałem, anulowanie", test_board_pick_mode],
 		["UI: plansza w Main.tscn – ruch i budowa kliknięciami, serwer przyjmuje rozkazy", test_main_board],
 		["Licytacja: reguły wspólne (koszt z kapłanami, minimum 1 JZ, przebicie, zakaz powrotu)", test_bid_rules],
 		["Licytacja: walidacja UI = walidacja serwera (losowe stany)", test_bid_rules_match_server],
@@ -148,6 +151,12 @@ func _ready() -> void:
 		["UI licytacji: tory, kapłani, walidacja przed RPC, wysłanie, odmowa, Apollo, Hades", test_bidding_board_ui],
 		["UI licytacji: przebicie – „Musisz wybrać innego Boga”, animacja znacznika, dźwięk", test_bidding_displacement_ui],
 		["UI: licytacja w Main.tscn – kliknięcia, przebicie przez serwer, Apollo", test_main_bidding],
+		["UI: panel akcji – rekrutacja z kosztem i limitami, budowa z wolnymi miejscami, cudza tura", test_action_panel_ui],
+		["UI: tor stworów – kolejność 4/3/2 JZ, cena ze Świątyniami, zakup i wymiana tylko we właściwej turze", test_creature_track_ui],
+		["UI: tor stworów – cel mocy krok po kroku (Harpia, Gigant, Kraken, Pegaz, Minotaur), anulowanie", test_creature_track_targets],
+		["UI: dialog Metropolii – wybór wyspy tylko dla gracza, na którego czeka serwer", test_metropolis_dialog_ui],
+		["UI: panel końca gry – zwycięzca, przewaga złota i remis", test_game_over_panel_ui],
+		["UI: Main – rekrutacja i stwór przez planszę, dialog Metropolii, koniec gry", test_main_god_turn_ui],
 	]
 	for entry in tests:
 		await _run(entry[0], entry[1])
@@ -268,9 +277,10 @@ func test_recruit_cards_and_rejections() -> void:
 
 
 ## Komplet czterech różnych budynków, nawet na kilku wyspach, od razu zamienia się w Metropolię.
-## Staje ona na wyspie z największą liczbą różnych budynków kompletu. Zbędne budynki zostają.
+## Gracz AI nie wybiera: Metropolia staje na wyspie z największą liczbą różnych budynków
+## kompletu (najpierw z niej znikają budynki). Zbędne budynki zostają.
 func test_metropolis_from_buildings() -> void:
-	var gsm := _logic_game()
+	var gsm := _logic_game([true, false, false])
 	_turn(gsm, "ATHENA", "p1")
 	var state: Dictionary = gsm._state
 	state["islands"]["andros"]["buildings"] = ["PORT", "TEMPLE", "FORTRESS"]
@@ -284,10 +294,10 @@ func test_metropolis_from_buildings() -> void:
 	gsm.queue_free()
 
 
-## Czwarty filozof: cała czwórka odchodzi, a gracz dostaje Metropolię. Gdy wszystkie jego
-## wyspy mają już Metropolię, nowa „zastępuje” starą, więc filozofowie po prostu przepadają.
+## Czwarty filozof: cała czwórka odchodzi, a gracz dostaje Metropolię (AI: na wyspie z budynkami).
+## Gdy wszystkie wyspy gracza mają już Metropolię, nowa „zastępuje” starą: filozofowie przepadają.
 func test_metropolis_from_philosophers() -> void:
-	var gsm := _logic_game()
+	var gsm := _logic_game([true, false, false])
 	_turn(gsm, "ATHENA", "p1")
 	var state: Dictionary = gsm._state
 	state["players"]["p1"]["philosophers"] = 3
@@ -304,6 +314,47 @@ func test_metropolis_from_philosophers() -> void:
 	check_eq([solo._state["players"]["p1"]["philosophers"], MoveRules.metropolises_of(solo._state, "p1")], [0, 1], "bez wolnego miejsca filozofowie przepadają")
 	gsm.queue_free()
 	solo.queue_free()
+
+
+## Człowiek, który ma więcej niż jedną wyspę bez Metropolii, sam wybiera jej miejsce. Składniki
+## znikają od razu, a serwer czeka na wybór (`pending_metropolis`). Przy jednej możliwej wyspie
+## Metropolia staje od razu. Koniec tury bez wyboru: serwer stawia ją tak jak dla AI.
+func test_metropolis_site_choice() -> void:
+	var gsm := _logic_game()
+	_turn(gsm, "ATHENA", "p1")
+	var state: Dictionary = gsm._state
+	state["islands"]["andros"]["buildings"] = ["PORT", "TEMPLE", "FORTRESS"]
+	state["islands"]["syros"] = _isle("p1", 1)
+	check_code(gsm.apply_build("p1", "syros"), "")  # Uniwersytet domyka komplet
+	check_eq(state.get("pending_metropolis"), {"player": "p1", "origin": "BUILDINGS", "sites": ["andros", "syros"]}, "serwer czeka na wybór wyspy")
+	check_eq([state["islands"]["andros"]["buildings"], state["islands"]["syros"]["buildings"]], [[], []], "komplet budynków zużyty od razu")
+	check_eq(MoveRules.metropolises_of(state, "p1"), 0, "przed wyborem Metropolia nie stoi")
+	check(_has_event(state, {"type": "METROPOLIS_PENDING", "player": "p1", "sites": ["andros", "syros"]}), "oczekiwanie na wybór w dzienniku")
+	var revision: int = state["revision"]
+	check_code(gsm.apply_place_metropolis("p2", "mykonos"), "NOTHING_TO_PLACE")
+	check_code(gsm.apply_place_metropolis("p1", "mykonos"), "INVALID_SITE")
+	check_eq(state["revision"], revision, "odmowy nie zmieniają stanu")
+	check_code(gsm.apply_place_metropolis("p1", "syros"), "")
+	check_eq([state["islands"]["syros"]["metropolis"], state["islands"]["andros"]["metropolis"], state["pending_metropolis"]], [true, false, {}], "Metropolia na wybranej wyspie")
+	check(_has_event(state, {"type": "METROPOLIS", "player": "p1", "island": "syros", "origin": "BUILDINGS"}), "Metropolia w dzienniku")
+	gsm.queue_free()
+
+	var lazy := _logic_game()
+	_turn(lazy, "ATHENA", "p1")
+	lazy._state["players"]["p1"]["philosophers"] = 3
+	lazy._state["islands"]["syros"] = _isle("p1", 0, ["PORT", "TEMPLE"])
+	check_code(lazy.apply_recruit("p1", "PHILOSOPHER", ""), "")
+	check_eq(lazy._state["pending_metropolis"].get("sites", []), ["andros", "syros"], "filozofowie: wybór między Andros i Syros")
+	check_code(lazy.apply_end_turn("p1"), "")
+	check_eq([lazy._state["islands"]["syros"]["metropolis"], lazy._state["pending_metropolis"]], [true, {}], "koniec tury bez wyboru: Metropolia na wyspie z budynkami")
+	lazy.queue_free()
+
+	var single := _logic_game()
+	_turn(single, "ATHENA", "p1")
+	single._state["players"]["p1"]["philosophers"] = 3
+	check_code(single.apply_recruit("p1", "PHILOSOPHER", ""), "")
+	check_eq([single._state["islands"]["andros"]["metropolis"], single._state["pending_metropolis"]], [true, {}], "jedna możliwa wyspa: bez pytania")
+	single.queue_free()
 
 
 ## Metropolia liczy się jak Forteca w bitwie o swoją wyspę i jak Port w bitwie na sąsiednim polu morskim.
@@ -352,6 +403,8 @@ func test_victory_at_cycle_end() -> void:
 	state["players"]["p3"]["gold"] = 7
 	check_code(gsm.apply_end_turn("p1"), "")
 	check_eq([state["phase"], state.get("winners")], ["GAME_OVER", ["p3"]], "dwóch z 2 Metropoliami: wygrywa bogatszy")
+	check_eq(state.get("result"), {"winners": ["p3"], "contenders": ["p2", "p3"], "gold": {"p2": 3, "p3": 7}}, "wynik: kandydaci z 2 Metropoliami i ich złoto")
+	check_eq(gsm.project_for("p1")["result"]["gold"], {"p2": 3, "p3": 7}, "na koniec gry złoto kandydatów jest jawne")
 	check(_has_event(state, {"type": "GAME_OVER", "winners": ["p3"]}), "koniec gry w dzienniku")
 	check(not gsm.is_game_running(), "partia zakończona")
 	check_code(gsm.apply_end_turn("p1"), "NOT_ACTIONS")
@@ -367,13 +420,14 @@ func test_victory_at_cycle_end() -> void:
 	tie._state["islands"]["milos"]["metropolis"] = true
 	check_code(tie.apply_end_turn("p1"), "")
 	check_eq(tie._state.get("winners"), ["p2", "p3"], "równe złoto: wygrywają obaj")
+	check_eq(tie._state.get("result"), {"winners": ["p2", "p3"], "contenders": ["p2", "p3"], "gold": {"p2": 5, "p3": 5}}, "remis w wyniku")
 	tie.queue_free()
 
 	var ongoing := _logic_game()
 	_turn(ongoing, "ARES", "p1")
 	ongoing._state["islands"]["mykonos"]["metropolis"] = true
 	check_code(ongoing.apply_end_turn("p1"), "")
-	check_eq([ongoing._state["phase"], ongoing._state["cycle"], ongoing._state.get("winners")], ["BIDDING", 2, []], "jedna Metropolia to za mało: nowy cykl")
+	check_eq([ongoing._state["phase"], ongoing._state["cycle"], ongoing._state.get("winners"), ongoing._state.get("result")], ["BIDDING", 2, [], {}], "jedna Metropolia to za mało: nowy cykl")
 	ongoing.queue_free()
 
 
@@ -1058,6 +1112,30 @@ func test_network_god_actions() -> void:
 	_free(table)
 
 
+## Metropolia przez sieć: czwarty filozof klienta, który ma dwie wyspy, każe serwerowi czekać na
+## wybór. Klient widzi to w projekcji i wysyła wybraną wyspę przez RPC.
+func test_network_metropolis_choice() -> void:
+	var table := await _started_table()
+	var host: Machine = table[0]
+	var client: Machine = table[1]
+	var me := client.player_id()
+	var state: Dictionary = host.state._state
+	state["phase"] = "ACTIONS"
+	state["turns"] = [{"god": "ATHENA", "player": me}]
+	state["turn_index"] = 0
+	state["players"][me]["philosophers"] = 3
+	state["islands"]["delos"] = _isle(me, 0)
+	host.state._commit()
+	check(await _until(func() -> bool: return client.state.view.get("revision", -1) == state["revision"]), "klient ma scenariusz od serwera")
+	client.net.recruit("PHILOSOPHER", "")
+	check(await _until(func() -> bool: return client.state.view.get("pending_metropolis", {}).get("player", "") == me), "klient widzi, że serwer czeka na jego wybór")
+	check_eq(client.state.view["pending_metropolis"]["sites"], [_city_of(state, me), "delos"], "do wyboru miasto klienta i Delos")
+	client.net.place_metropolis("delos")
+	check(await _until(func() -> bool: return bool(state["islands"]["delos"]["metropolis"])), "serwer stawia Metropolię na wyspie wybranej przez klienta")
+	check(await _until(func() -> bool: return client.state.view.get("pending_metropolis", {"x": 1}).is_empty()), "klient dostaje stan bez oczekiwania")
+	_free(table)
+
+
 func test_disconnect_and_reconnect() -> void:
 	var table := await _started_table()
 	var host: Machine = table[0]
@@ -1188,6 +1266,7 @@ func test_main_log_describes_new_events() -> void:
 	var events := [
 		{"type": "RECRUIT", "player": "p1", "kind": "TROOP", "target": "andros", "cost": 2},
 		{"type": "RECRUIT", "player": "p1", "kind": "PRIEST", "target": "", "cost": 0},
+		{"type": "METROPOLIS_PENDING", "player": "p1", "origin": "BUILDINGS", "sites": ["andros", "syros"]},
 		{"type": "METROPOLIS", "player": "p1", "island": "andros", "origin": "BUILDINGS"},
 		{"type": "METROPOLIS", "player": "p1", "island": "", "origin": "PHILOSOPHERS"},
 		{"type": "CREATURE", "player": "p1", "creature": "KRAKEN", "cost": 3},
@@ -1582,6 +1661,47 @@ func test_board_picking() -> void:
 	gsm.queue_free()
 
 
+## Tryb wskazywania pola (miejsce rekrutacji, cel mocy stwora, wyspa dla Metropolii): plansza podświetla
+## tylko podane pola, a reszta przygasa. Kliknięcie celu zwraca go sygnałem target_picked, kliknięcie
+## poza celami niczego nie wybiera (i nie włącza trybu ruchu), a prawy przycisk anuluje tryb (pick_cancelled).
+func test_board_pick_mode() -> void:
+	var container := SubViewportContainer.new()
+	container.stretch = true
+	container.position = Vector2(40, 30)
+	container.size = Vector2(640, 520)
+	var viewport := SubViewport.new()
+	container.add_child(viewport)
+	var board: Board = load("res://scenes/board/Board.tscn").instantiate()
+	board.follow_game_state = false
+	viewport.add_child(board)
+	add_child(container)
+	var gsm := _logic_game()
+	_turn(gsm, "ARES", "p1")
+	board.apply_view(gsm.project_for("p1"))
+	await _frames(2)
+	var picked: Array = []
+	var cancelled: Array = []
+	var hints: Array = []
+	board.target_picked.connect(func(territory_id: String) -> void: picked.append(territory_id))
+	board.pick_cancelled.connect(func() -> void: cancelled.append(true))
+	board.hint_changed.connect(func(text: String) -> void: hints.append(text))
+	board.pick_targets({"andros": Board.TARGET_PICK, "mykonos": MoveRules.TARGET_ATTACK}, "Wybierz wyspę.")
+	check_eq([board.selected_action, board.targets], [Board.PICK, {"andros": "PICK", "mykonos": "ATTACK"}], "tryb wskazywania z podanymi celami")
+	check_eq([board.territory("andros").mark, board.territory("mykonos").mark, board.territory("delos").mark], [TerritoryNode.Mark.MOVE_TARGET, TerritoryNode.Mark.ATTACK_TARGET, TerritoryNode.Mark.DIMMED], "cele podświetlone, reszta przygaszona")
+	check_eq(hints.back() if not hints.is_empty() else "", "Wybierz wyspę.", "podpowiedź mówi, co wskazać")
+	board.apply_view(gsm.project_for("p1"))
+	check_eq(board.selected_action, Board.PICK, "nowy stan od serwera nie przerywa wskazywania")
+	await _mouse_click(_board_point(container, board, "delos"))
+	check_eq([picked, board.selected_action], [[], Board.PICK], "kliknięcie poza celami niczego nie wybiera")
+	await _mouse_click(_board_point(container, board, "andros"))
+	check_eq([picked, board.selected_action, cancelled], [["andros"], "", []], "kliknięty cel wraca sygnałem, a tryb się kończy")
+	board.pick_targets({"andros": Board.TARGET_PICK}, "Wybierz wyspę.")
+	await _mouse_click(_board_point(container, board, "delos"), MOUSE_BUTTON_RIGHT)
+	check_eq([picked, board.selected_action, cancelled], [["andros"], "", [true]], "prawy przycisk anuluje wskazywanie")
+	container.queue_free()
+	gsm.queue_free()
+
+
 func test_main_board() -> void:
 	var main: Control = load("res://scenes/Main.tscn").instantiate()
 	var browser: Control = main.get_node("%Browser")
@@ -1618,7 +1738,7 @@ func test_main_board() -> void:
 	check_eq([GameStateManager._state["islands"]["delos"]["troops"], GameStateManager._state["islands"][city]["troops"]], [3, 0], "na Delos przeszły wszystkie trzy oddziały")
 	check(await _until(func() -> bool: return board.territory("delos").owner_player_id == me), "plansza pokazuje nowego właściciela Delos")
 
-	(main.get_node("%BuildButton") as Button).pressed.emit()
+	(main.get_node("%ActionPanel").get_node("%BuildButton") as Button).pressed.emit()
 	check_eq(board.targets, {city: "BUILD", "delos": "BUILD"}, "„Buduj…”: podświetlone wyspy gracza z wolnym miejscem")
 	await _mouse_click(_screen_point(map_view, board, "delos"))
 	check(await _until(func() -> bool: return GameStateManager._state["islands"]["delos"]["buildings"] == ["FORTRESS"]), "kliknięta wyspa dostaje Fortecę (tura Aresa)")
@@ -2028,6 +2148,320 @@ func _bid_buttons(panel: BiddingBoardUI) -> Array:
 
 func _enabled_gods(panel: BiddingBoardUI) -> Array:
 	return panel._rows.keys().filter(func(god_id: String) -> bool: return not (panel._rows[god_id]["button"] as Button).disabled)
+
+
+## Panel akcji w turze boga: rekrutacja jednostki boga z kosztem następnej sztuki, liczbą zakupów,
+## które zostały w turze, i limitem figurek oraz budowa z ceną i wolnymi miejscami. Przyciski
+## wysyłają intencje (Main zamienia je na rozkazy dla serwera), a poza twoją turą są wyłączone.
+func test_action_panel_ui() -> void:
+	var gsm := _logic_game()
+	_turn(gsm, "ARES", "p1")
+	var state: Dictionary = gsm._state
+	state["players"]["p1"]["gold"] = 20
+	var panel: ActionPanelUI = load("res://scenes/ui/ActionPanel.tscn").instantiate()
+	panel.follow_game_state = false
+	add_child(panel)
+	var requests: Array = []
+	panel.recruit_requested.connect(func(kind: String) -> void: requests.append(kind))
+	panel.build_requested.connect(func() -> void: requests.append("BUILD"))
+	var title: Label = panel.get_node("%TitleLabel")
+	var recruit: Button = panel.get_node("%RecruitButton")
+	var recruit_info: Label = panel.get_node("%RecruitInfo")
+	var build: Button = panel.get_node("%BuildButton")
+	var build_info: Label = panel.get_node("%BuildInfo")
+	panel.apply_view(gsm.project_for("p1"))
+	check_eq(title.text, "Tura Aresa: rekrutacja i budowa", "tytuł: twoja tura")
+	check_eq([recruit.text, recruit.disabled, recruit_info.text], ["Oddział · 0 JZ (darmowy)", false, "dokupisz jeszcze 3 z 3 · oddziały na planszy 2/8"], "Ares: pierwszy oddział za darmo")
+	check_eq([build.text, build.disabled, build_info.text], ["Buduj Fortecę · 2 JZ", false, "wolne miejsca na 1 wyspie"], "budowa Fortecy")
+	recruit.pressed.emit()
+	build.pressed.emit()
+	check_eq(requests, ["TROOP", "BUILD"], "przyciski wysyłają intencje")
+	for i in 3:
+		check_code(gsm.apply_recruit("p1", "TROOP", "andros"), "")
+	panel.apply_view(gsm.project_for("p1"))
+	check_eq([recruit.text, recruit.disabled, recruit_info.text], ["Oddział · 4 JZ", false, "dokupisz jeszcze 1 z 3 · oddziały na planszy 5/8"], "po trzech oddziałach czwarty kosztuje 4 JZ")
+	check_code(gsm.apply_recruit("p1", "TROOP", "andros"), "")
+	panel.apply_view(gsm.project_for("p1"))
+	check_eq([recruit.text, recruit.disabled, recruit_info.text], ["Oddział · limit tury", true, "limit tury wyczerpany · oddziały na planszy 6/8"], "po czterech oddziałach limit tury")
+
+	_turn(gsm, "ZEUS", "p1")
+	panel.apply_view(gsm.project_for("p1"))
+	check_eq([recruit.text, recruit_info.text, build.text], ["Kapłan · 0 JZ (darmowy)", "dokupisz jeszcze 1 z 1 · kapłani: 0", "Buduj Świątynię · 2 JZ"], "Zeus: kapłan i Świątynia")
+	check_code(gsm.apply_recruit("p1", "PRIEST", ""), "")
+	panel.apply_view(gsm.project_for("p1"))
+	check_eq(recruit.text, "Kapłan · 4 JZ", "drugi kapłan za 4 JZ")
+	check_code(gsm.apply_recruit("p1", "PRIEST", ""), "")
+	panel.apply_view(gsm.project_for("p1"))
+	check_eq([recruit.text, recruit.disabled, recruit_info.text], ["Kapłan · limit tury", true, "limit tury wyczerpany · kapłani: 2"], "blokada po dokupionym kapłanie")
+	_turn(gsm, "ATHENA", "p1")
+	state["players"]["p1"]["philosophers"] = 2
+	panel.apply_view(gsm.project_for("p1"))
+	check_eq([recruit.text, recruit_info.text], ["Filozof · 0 JZ (darmowy)", "dokupisz jeszcze 1 z 1 · filozofowie: 2 z 4 do Metropolii"], "Atena: filozofowie do Metropolii")
+	state["players"]["p1"]["gold"] = 1
+	panel.apply_view(gsm.project_for("p1"))
+	check_eq([build.disabled, build_info.text], [true, "nie stać cię: 2 JZ, masz 1 JZ"], "budowa: brak złota")
+	state["players"]["p1"]["gold"] = 5
+	state["islands"]["andros"]["buildings"] = ["PORT", "PORT", "PORT"]
+	panel.apply_view(gsm.project_for("p1"))
+	check_eq([build.disabled, build_info.text], [true, "brak wolnych miejsc na twoich wyspach"], "budowa: pełne wyspy")
+
+	_turn(gsm, "APOLLO", "p1")
+	panel.apply_view(gsm.project_for("p1"))
+	check(not (panel.get_node("%RecruitRow") as Control).visible and not (panel.get_node("%BuildRow") as Control).visible, "Apollo: bez rekrutacji i budowy")
+	_turn(gsm, "ARES", "p2")
+	panel.apply_view(gsm.project_for("p1"))
+	check_eq([title.text, recruit.disabled, build.disabled], ["Tura Aresa: gra Gracz 2", true, true], "cudza tura: wszystko wyłączone")
+	panel.on_action_rejected("CANNOT_AFFORD", "Ta rekrutacja kosztuje 4 JZ, a masz 3 JZ.")
+	check_eq((panel.get_node("%NoticeLabel") as Label).text, "Ta rekrutacja kosztuje 4 JZ, a masz 3 JZ.", "odmowa serwera w panelu")
+	panel.queue_free()
+	gsm.queue_free()
+
+
+## Tor stworów w UI: karty od pola za 4 JZ do pola za 2 JZ, cena po zniżce ze Świątyń (najmniej
+## 1 JZ), „Kup” tylko w twojej turze i gdy cię stać, „Wymień (1 JZ)” tylko w twojej turze Zeusa.
+func test_creature_track_ui() -> void:
+	var gsm := _logic_game()
+	_turn(gsm, "ARES", "p1")
+	var state: Dictionary = gsm._state
+	state["creatures"]["slots"] = ["HARPY", "GIANT", "KRAKEN"]
+	state["creatures"]["deck"] = ["PEGASUS", "MINOTAUR"]
+	state["creatures"]["discard"] = []
+	state["islands"]["andros"]["buildings"] = ["TEMPLE"]
+	var track := _creature_track()
+	track.apply_view(gsm.project_for("p1"))
+	check_eq(_card_texts(track, "NameLabel"), ["Kraken", "Gigant", "Harpia"], "karty od pola za 4 JZ do pola za 2 JZ")
+	check_eq(_card_texts(track, "CostLabel"), ["pole: 4 JZ", "pole: 3 JZ", "pole: 2 JZ"], "koszt bazowy pól")
+	check_eq(_card_texts(track, "PriceLabel"), ["cena: 3 JZ (Świątynie −1)", "cena: 2 JZ (Świątynie −1)", "cena: 1 JZ (Świątynie −1)"], "cena po zniżce ze Świątyni")
+	check_eq((track.get_node("%DeckLabel") as Label).text, "talia: 2 · stos: 0", "talia i stos")
+	check(_card_buttons(track, "BuyButton").all(func(button: Button) -> bool: return not button.disabled), "twoja tura: wszystkie karty do kupienia")
+	check(_card_buttons(track, "SwapButton").all(func(button: Button) -> bool: return not button.visible), "poza turą Zeusa bez wymiany")
+	state["players"]["p1"]["gold"] = 2
+	track.apply_view(gsm.project_for("p1"))
+	check_eq(_card_buttons(track, "BuyButton").map(func(button: Button) -> bool: return button.disabled), [true, false, false], "przy 2 JZ Kraken za drogi")
+	_turn(gsm, "ZEUS", "p1")
+	track.apply_view(gsm.project_for("p1"))
+	var swaps: Array = []
+	track.swap_confirmed.connect(func(slot: int) -> void: swaps.append(slot))
+	check(_card_buttons(track, "SwapButton").all(func(button: Button) -> bool: return button.visible and not button.disabled), "tura Zeusa: wymiana każdej karty")
+	(_card_buttons(track, "SwapButton")[0] as Button).pressed.emit()
+	check_eq(swaps, [2], "wymiana karty z pola za 4 JZ (pole 2)")
+	check(_card_buttons(track, "SwapButton").all(func(button: Button) -> bool: return button.disabled), "po wysłaniu bez podwójnej wymiany")
+	_turn(gsm, "ARES", "p2")
+	state["creatures"]["slots"] = ["HARPY", "", "KRAKEN"]
+	track.apply_view(gsm.project_for("p1"))
+	check(_card_buttons(track, "BuyButton").all(func(button: Button) -> bool: return button.disabled), "cudza tura: zakupy wyłączone")
+	check_eq([_card_texts(track, "NameLabel")[1], _card_texts(track, "PriceLabel")[1]], ["—", "pole puste"], "puste pole toru")
+	track.queue_free()
+	gsm.queue_free()
+
+
+## Zakup stwora z celem mocy: panel prosi planszę o wskazanie pól (pick_requested) i zbiera cel
+## krok po kroku (wyspa, budynek, liczba oddziałów, trasa Krakena). Gotowy zakup wysyła jako buy_confirmed.
+func test_creature_track_targets() -> void:
+	var gsm := _logic_game()
+	_turn(gsm, "ARES", "p1")
+	var state: Dictionary = gsm._state
+	state["players"]["p1"]["gold"] = 20
+	state["creatures"]["slots"] = ["HARPY", "GIANT", "KRAKEN"]
+	state["islands"]["mykonos"]["buildings"] = ["PORT", "TEMPLE"]
+	var track := _creature_track()
+	var picks: Array = []
+	var buys: Array = []
+	var cancels: Array = []
+	track.pick_requested.connect(func(candidates: Dictionary, prompt: String) -> void: picks.append([candidates, prompt]))
+	track.buy_confirmed.connect(func(slot: int, params: Dictionary) -> void: buys.append([slot, params]))
+	track.pick_cancelled.connect(func() -> void: cancels.append(true))
+	track.apply_view(gsm.project_for("p1"))
+
+	(track.get_node("%Cards/Slot0/BuyButton") as Button).pressed.emit()
+	check_eq(picks.back()[0] if not picks.is_empty() else {}, {"andros": "PICK", "mykonos": "ATTACK", "naxos": "ATTACK"}, "Harpia: wyspy z oddziałami, rywale na czerwono")
+	track.on_target_picked("mykonos")
+	check_eq(buys, [[0, {"island": "mykonos"}]], "Harpia: zakup z wybraną wyspą")
+	track.apply_view(gsm.project_for("p1"))
+
+	track.start_buy(1)
+	check_eq(picks.back()[0], {"mykonos": "ATTACK"}, "Gigant: wyspy z budynkami")
+	track.on_target_picked("mykonos")
+	var option: OptionButton = track.get_node("%BuildingOption")
+	check_eq([option.visible, option.item_count, option.get_item_text(1)], [true, 2, "Świątynia"], "Gigant: wybór jednego z dwóch budynków")
+	option.select(1)
+	(track.get_node("%ConfirmButton") as Button).pressed.emit()
+	check_eq(buys.back(), [1, {"island": "mykonos", "building": "TEMPLE"}], "Gigant niszczy wybraną Świątynię")
+	track.apply_view(gsm.project_for("p1"))
+
+	track.start_buy(2)
+	check_eq(picks.back()[0].size(), 6, "Kraken: każde pole morskie")
+	track.on_target_picked("arch_center")
+	check_eq(_sorted_keys(picks.back()[0]), ["arch_n", "arch_ne", "arch_nw", "arch_se", "arch_sw"], "trasa Krakena: sąsiednie pola")
+	track.on_target_picked("arch_ne")
+	check((track.get_node("%PromptLabel") as Label).text.contains("5 JZ"), "koszt z trasą: 4 JZ + 1 JZ (%s)" % (track.get_node("%PromptLabel") as Label).text)
+	(track.get_node("%ConfirmButton") as Button).pressed.emit()
+	check_eq(buys.back(), [2, {"sea": "arch_center", "path": ["arch_ne"]}], "Kraken: pole i trasa")
+	track.apply_view(gsm.project_for("p1"))
+
+	track.start_buy(0)
+	(track.get_node("%CancelButton") as Button).pressed.emit()
+	check_eq([cancels, (track.get_node("%Prompt") as Control).visible], [[true], false], "anulowanie kończy wskazywanie")
+
+	state["creatures"]["slots"] = ["PEGASUS", "MINOTAUR", ""]
+	track.apply_view(gsm.project_for("p1"))
+	track.start_buy(0)
+	check_eq(picks.back()[0], {"andros": "PICK"}, "Pegaz: twoje wyspy z oddziałami")
+	track.on_target_picked("andros")
+	check(not picks.back()[0].has("mykonos") and picks.back()[0].has("delos"), "Pegaz: ostatnia wyspa rywala chroniona, Delos dostępne")
+	track.on_target_picked("delos")
+	var count: SpinBox = track.get_node("%CountSpin")
+	check_eq([count.visible, count.max_value, count.value], [true, 2.0, 2.0], "Pegaz: domyślnie wszystkie oddziały")
+	count.value = 1
+	(track.get_node("%ConfirmButton") as Button).pressed.emit()
+	check_eq(buys.back(), [0, {"from": "andros", "to": "delos", "count": 1}], "Pegaz: przerzut jednego oddziału")
+	track.apply_view(gsm.project_for("p1"))
+
+	track.start_buy(1)
+	check_eq(picks.back()[0], {"andros": "PICK"}, "Minotaur: twoje wyspy")
+	track.on_target_picked("andros")
+	check_eq(buys.back(), [1, {"island": "andros"}], "Minotaur na Andros")
+	track.queue_free()
+	gsm.queue_free()
+
+
+## Dialog Metropolii pokazuje się tylko graczowi, na którego wybór czeka serwer, z przyciskiem dla
+## każdej możliwej wyspy. Kliknięta wyspa wychodzi sygnałem site_chosen (raz).
+func test_metropolis_dialog_ui() -> void:
+	var gsm := _logic_game()
+	_turn(gsm, "ATHENA", "p1")
+	var dialog: MetropolisDialogUI = load("res://scenes/ui/MetropolisDialog.tscn").instantiate()
+	dialog.follow_game_state = false
+	add_child(dialog)
+	var chosen: Array = []
+	dialog.site_chosen.connect(func(island_id: String) -> void: chosen.append(island_id))
+	dialog.apply_view(gsm.project_for("p1"))
+	check(not dialog.visible, "bez oczekującej Metropolii dialog ukryty")
+	gsm._state["pending_metropolis"] = {"player": "p1", "origin": "PHILOSOPHERS", "sites": ["andros", "syros"]}
+	dialog.apply_view(gsm.project_for("p2"))
+	check(not dialog.visible, "cudzy wybór: dialog ukryty")
+	dialog.apply_view(gsm.project_for("p1"))
+	var buttons: Array = (dialog.get_node("%Sites") as Container).get_children()
+	check_eq([dialog.visible, buttons.map(func(button: Button) -> String: return button.text)], [true, ["Andros", "Syros"]], "dialog z wyspami do wyboru")
+	check_eq((dialog.get_node("%TextLabel") as Label).text, "Czterech filozofów zakłada Metropolię. Wybierz wyspę, na której stanie.", "powód: filozofowie")
+	(buttons[1] as Button).pressed.emit()
+	check_eq(chosen, ["syros"], "wybrana wyspa wysłana")
+	check(buttons.all(func(button: Button) -> bool: return button.disabled), "po wyborze bez podwójnego wysłania")
+	dialog.queue_free()
+	gsm.queue_free()
+
+
+## Panel końca gry: zwycięzca z 2 Metropoliami, zwycięzca dzięki złotu i remis (dane z `result`).
+func test_game_over_panel_ui() -> void:
+	var panel: GameOverPanelUI = load("res://scenes/ui/GameOverPanel.tscn").instantiate()
+	panel.follow_game_state = false
+	add_child(panel)
+	var players := {"p1": {"name": "Ariadna"}, "p2": {"name": "Tezeusz"}, "p3": {"name": "Dedal"}}
+	var title: Label = panel.get_node("%TitleLabel")
+	var message: Label = panel.get_node("%MessageLabel")
+	panel.apply_view({"phase": "BIDDING", "players": players, "you": "p1", "cycle": 2})
+	check(not panel.visible, "w trakcie gry panel ukryty")
+	panel.apply_view({"phase": "GAME_OVER", "players": players, "you": "p1", "cycle": 5, "result": {"winners": ["p2"], "contenders": ["p2"], "gold": {"p2": 4}}})
+	check_eq([panel.visible, title.text, message.text], [true, "Koniec gry", "Wygrywa Tezeusz: 2 Metropolie na koniec cyklu 5."], "jeden gracz z 2 Metropoliami")
+	panel.apply_view({"phase": "GAME_OVER", "players": players, "you": "p2", "cycle": 5, "result": {"winners": ["p2"], "contenders": ["p1", "p2"], "gold": {"p1": 3, "p2": 7}}})
+	check_eq([title.text, message.text], ["Zwycięstwo!", "Wygrywa Tezeusz: 2 Metropolie i najwięcej złota (Tezeusz 7 JZ, Ariadna 3 JZ)."], "dwóch z 2 Metropoliami: decyduje złoto")
+	panel.apply_view({"phase": "GAME_OVER", "players": players, "you": "p2", "cycle": 5, "result": {"winners": ["p1", "p3"], "contenders": ["p1", "p3"], "gold": {"p1": 5, "p3": 5}}})
+	check_eq([title.text, message.text], ["Koniec gry", "Remis: Ariadna i Dedal mają po 2 Metropolie i po 5 JZ."], "remis w złocie")
+	var leaves: Array = []
+	panel.leave_requested.connect(func() -> void: leaves.append(true))
+	(panel.get_node("%LeaveButton") as Button).pressed.emit()
+	check_eq(leaves, [true], "przycisk wyjścia")
+	panel.queue_free()
+
+
+## Main: panel akcji, tor stworów, dialog Metropolii i koniec gry połączone z planszą i serwerem
+## (gra solo, prawdziwe autoloady, prawdziwe kliknięcia na planszy).
+func test_main_god_turn_ui() -> void:
+	var main: Control = load("res://scenes/Main.tscn").instantiate()
+	var browser: Control = main.get_node("%Browser")
+	(browser.get_node("LanListener") as LanListener).discovery_ports = [_discovery_port]
+	add_child(main)
+	(browser.get_node("%NameEdit") as LineEdit).text = "Ariadna"
+	(browser.get_node("%SingleButton") as Button).pressed.emit()
+	check(await _until(func() -> bool: return (main.get_node("%Game") as Control).visible), "gra solo pokazuje panel z planszą")
+	var board: Board = main.get_node("%Board")
+	var map_view: SubViewportContainer = main.get_node("%MapView")
+	var actions: ActionPanelUI = main.get_node("%ActionPanel")
+	var track: CreatureTrackUI = main.get_node("%CreatureTrack")
+	var me := NetworkManager.local_player_id
+	var state: Dictionary = GameStateManager._state
+	var city := _city_of(state, me)
+	var rival_city := _city_of(state, _other_than([me]))
+	state["phase"] = "ACTIONS"
+	state["turns"] = [{"god": "ARES", "player": me}]
+	state["turn_index"] = 0
+	state["players"][me]["gold"] = 20
+	state["creatures"]["slots"] = ["HARPY", "", ""]
+	GameStateManager._commit()
+	check(await _until(func() -> bool: return board.view.get("revision", -1) == state["revision"]), "plansza dostała stan od serwera")
+	await _frames(2)
+	check(actions.visible and track.visible and not (main.get_node("%BiddingBoard") as Control).visible, "tura boga: panel akcji i tor stworów zamiast licytacji")
+
+	(actions.get_node("%RecruitButton") as Button).pressed.emit()
+	check_eq(board.targets, {city: Board.TARGET_PICK}, "rekrutacja: plansza podświetla twoje wyspy")
+	await _mouse_click(_screen_point(map_view, board, city))
+	check(await _until(func() -> bool: return int(GameStateManager._state["islands"][city]["troops"]) == 3), "serwer postawił oddział na wskazanej wyspie")
+
+	check(await _until(func() -> bool: return not (track.get_node("%Cards/Slot0/BuyButton") as Button).disabled), "Harpia do kupienia")
+	(track.get_node("%Cards/Slot0/BuyButton") as Button).pressed.emit()
+	check(board.targets.has(rival_city), "Harpia: plansza podświetla wyspy z oddziałami")
+	await _mouse_click(_screen_point(map_view, board, rival_city))
+	check(await _until(func() -> bool: return int(GameStateManager._state["islands"][rival_city]["troops"]) == 1), "Harpia zabrała oddział rywalowi")
+
+	# Koniec twojej tury w trakcie zakupu: plansza przestaje czekać na pole, a zakup się przerywa.
+	state["creatures"]["slots"] = ["", "", "KRAKEN"]
+	GameStateManager._commit()
+	check(await _until(func() -> bool: return not (track.get_node("%Cards/Slot2/BuyButton") as Button).disabled), "Kraken do kupienia")
+	(track.get_node("%Cards/Slot2/BuyButton") as Button).pressed.emit()
+	check_eq(board.selected_action, Board.PICK, "Kraken: plansza czeka na pole morskie")
+	state["turns"] = [{"god": "ARES", "player": _other_than([me])}]
+	GameStateManager._commit()
+	check(await _until(func() -> bool: return board.selected_action == ""), "cudza tura kończy wskazywanie na planszy")
+	check_eq(track.step, CreatureTrackUI.Step.NONE, "zakup w toku przerwany")
+
+	state["phase"] = "ACTIONS"
+	state["turn_index"] = 0
+	state["turns"] = [{"god": "ATHENA", "player": me}]
+	state["players"][me]["philosophers"] = 3
+	state["islands"]["delos"] = _isle(me, 1)
+	GameStateManager._commit()
+	check(await _until(func() -> bool: return (actions.get_node("%RecruitButton") as Button).text.begins_with("Filozof")), "panel akcji w turze Ateny")
+	(actions.get_node("%RecruitButton") as Button).pressed.emit()
+	var dialog: MetropolisDialogUI = main.get_node("%MetropolisDialog")
+	check(await _until(func() -> bool: return dialog.visible), "czwarty filozof: dialog wyboru wyspy")
+	((dialog.get_node("%Sites") as Container).get_child(1) as Button).pressed.emit()
+	check(await _until(func() -> bool: return bool(GameStateManager._state["islands"]["delos"]["metropolis"])), "Metropolia na wybranej wyspie (Delos)")
+	check(await _until(func() -> bool: return not dialog.visible), "dialog znika po wyborze")
+
+	state["islands"][city]["metropolis"] = true
+	(main.get_node("%EndTurnButton") as Button).pressed.emit()
+	var game_over: GameOverPanelUI = main.get_node("%GameOverPanel")
+	check(await _until(func() -> bool: return game_over.visible), "koniec cyklu z 2 Metropoliami: panel końca gry")
+	check_eq((game_over.get_node("%MessageLabel") as Label).text, "Wygrywa Ariadna: 2 Metropolie na koniec cyklu %d." % int(state["cycle"]), "komunikat o zwycięzcy")
+	(game_over.get_node("%LeaveButton") as Button).pressed.emit()
+	check(await _until(func() -> bool: return (main.get_node("%Browser") as Control).visible), "wyjście do listy gier")
+	main.queue_free()
+
+
+func _creature_track() -> CreatureTrackUI:
+	var track: CreatureTrackUI = load("res://scenes/ui/CreatureTrack.tscn").instantiate()
+	track.follow_game_state = false
+	add_child(track)
+	return track
+
+
+## Teksty jednej etykiety na każdej karcie toru, w kolejności wyświetlania (pola 2, 1, 0).
+func _card_texts(track: CreatureTrackUI, label_name: String) -> Array:
+	return (track.get_node("%Cards") as Container).get_children().map(func(card: Node) -> String: return (card.get_node(label_name) as Label).text)
+
+
+func _card_buttons(track: CreatureTrackUI, button_name: String) -> Array:
+	return (track.get_node("%Cards") as Container).get_children().map(func(card: Node) -> Button: return card.get_node(button_name) as Button)
 
 
 func _machine(machine_name: String) -> Machine:

@@ -1,0 +1,179 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/CreatureTrackUI.gd" id="1_track"]
+
+[node name="CreatureTrack" type="PanelContainer"]
+offset_right = 420.0
+offset_bottom = 190.0
+script = ExtResource("1_track")
+
+[node name="Content" type="VBoxContainer" parent="."]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="Header" type="HBoxContainer" parent="Content"]
+layout_mode = 2
+
+[node name="TitleLabel" type="Label" parent="Content/Header"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Mitologiczne Stwory"
+
+[node name="DeckLabel" type="Label" parent="Content/Header"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "talia: 0 · stos: 0"
+
+[node name="Cards" type="HBoxContainer" parent="Content"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="Slot2" type="VBoxContainer" parent="Content/Cards"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="NameLabel" type="Label" parent="Content/Cards/Slot2"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 17
+text = "—"
+
+[node name="EffectLabel" type="Label" parent="Content/Cards/Slot2"]
+custom_minimum_size = Vector2(110, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.78, 0.8, 0.84, 1)
+theme_override_font_sizes/font_size = 12
+autowrap_mode = 3
+
+[node name="CostLabel" type="Label" parent="Content/Cards/Slot2"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 13
+
+[node name="PriceLabel" type="Label" parent="Content/Cards/Slot2"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.93, 0.62, 1)
+theme_override_font_sizes/font_size = 13
+
+[node name="BuyButton" type="Button" parent="Content/Cards/Slot2"]
+layout_mode = 2
+text = "Kup"
+
+[node name="SwapButton" type="Button" parent="Content/Cards/Slot2"]
+visible = false
+layout_mode = 2
+tooltip_text = "Zeus: karta idzie na stos, a jej miejsce zajmuje wierzch talii."
+text = "Wymień (1 JZ)"
+
+[node name="Slot1" type="VBoxContainer" parent="Content/Cards"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="NameLabel" type="Label" parent="Content/Cards/Slot1"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 17
+text = "—"
+
+[node name="EffectLabel" type="Label" parent="Content/Cards/Slot1"]
+custom_minimum_size = Vector2(110, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.78, 0.8, 0.84, 1)
+theme_override_font_sizes/font_size = 12
+autowrap_mode = 3
+
+[node name="CostLabel" type="Label" parent="Content/Cards/Slot1"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 13
+
+[node name="PriceLabel" type="Label" parent="Content/Cards/Slot1"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.93, 0.62, 1)
+theme_override_font_sizes/font_size = 13
+
+[node name="BuyButton" type="Button" parent="Content/Cards/Slot1"]
+layout_mode = 2
+text = "Kup"
+
+[node name="SwapButton" type="Button" parent="Content/Cards/Slot1"]
+visible = false
+layout_mode = 2
+tooltip_text = "Zeus: karta idzie na stos, a jej miejsce zajmuje wierzch talii."
+text = "Wymień (1 JZ)"
+
+[node name="Slot0" type="VBoxContainer" parent="Content/Cards"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="NameLabel" type="Label" parent="Content/Cards/Slot0"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 17
+text = "—"
+
+[node name="EffectLabel" type="Label" parent="Content/Cards/Slot0"]
+custom_minimum_size = Vector2(110, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.78, 0.8, 0.84, 1)
+theme_override_font_sizes/font_size = 12
+autowrap_mode = 3
+
+[node name="CostLabel" type="Label" parent="Content/Cards/Slot0"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 13
+
+[node name="PriceLabel" type="Label" parent="Content/Cards/Slot0"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.93, 0.62, 1)
+theme_override_font_sizes/font_size = 13
+
+[node name="BuyButton" type="Button" parent="Content/Cards/Slot0"]
+layout_mode = 2
+text = "Kup"
+
+[node name="SwapButton" type="Button" parent="Content/Cards/Slot0"]
+visible = false
+layout_mode = 2
+tooltip_text = "Zeus: karta idzie na stos, a jej miejsce zajmuje wierzch talii."
+text = "Wymień (1 JZ)"
+
+[node name="Prompt" type="VBoxContainer" parent="Content"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+
+[node name="PromptLabel" type="Label" parent="Content/Prompt"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.93, 0.62, 1)
+autowrap_mode = 3
+
+[node name="ChoiceRow" type="HBoxContainer" parent="Content/Prompt"]
+layout_mode = 2
+
+[node name="BuildingOption" type="OptionButton" parent="Content/Prompt/ChoiceRow"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+
+[node name="CountSpin" type="SpinBox" parent="Content/Prompt/ChoiceRow"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+min_value = 1.0
+max_value = 8.0
+value = 1.0
+
+[node name="ConfirmButton" type="Button" parent="Content/Prompt/ChoiceRow"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+text = "Zatwierdź"
+
+[node name="CancelButton" type="Button" parent="Content/Prompt/ChoiceRow"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Anuluj"
+
+[node name="NoticeLabel" type="Label" parent="Content"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.7, 0.42, 1)
+autowrap_mode = 3

@@ -7,7 +7,7 @@
 ##
 ## SERWER DECYDUJE (server-authoritative)
 ##   Klient wywołuje na serwerze (peer 1) rpc_submit_bid, rpc_move_units, rpc_build,
-##   rpc_recruit, rpc_buy_creature, rpc_swap_creature albo rpc_end_turn. Serwer ustala gracza z ID nadawcy
+##   rpc_recruit, rpc_buy_creature, rpc_swap_creature, rpc_place_metropolis albo rpc_end_turn. Serwer ustala gracza z ID nadawcy
 ##   (multiplayer.get_remote_sender_id()), a nie z treści wiadomości, więc nikt
 ##   nie zagra za kogoś innego. Reguły sprawdza GameStateManager. Wynik wraca jako
 ##   rpc_sync_game_state (każdy gracz dostaje własną projekcję stanu) albo jako
@@ -278,6 +278,14 @@ func swap_creature(slot: int) -> void:
 		rpc_swap_creature.rpc_id(1, slot)
 
 
+## Wybór wyspy dla nowej Metropolii, na który czeka serwer (`pending_metropolis` w projekcji).
+func place_metropolis(island_id: String) -> void:
+	if _is_host():
+		_report(game_state.apply_place_metropolis(local_player_id, island_id))
+	elif _is_connected_client():
+		rpc_place_metropolis.rpc_id(1, island_id)
+
+
 ## Koniec tury boga.
 func end_turn() -> void:
 	if _is_host():
@@ -349,6 +357,11 @@ func rpc_buy_creature(slot: int, params: Dictionary) -> void:
 @rpc("any_peer", "call_remote", "reliable")
 func rpc_swap_creature(slot: int) -> void:
 	_handle_intent(func(player_id: String) -> Dictionary: return game_state.apply_swap_creature(player_id, slot))
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func rpc_place_metropolis(island_id: String) -> void:
+	_handle_intent(func(player_id: String) -> Dictionary: return game_state.apply_place_metropolis(player_id, island_id))
 
 
 ## Wspólna obsługa intencji na serwerze: gracz wynika z połączenia, a nie z treści wiadomości.

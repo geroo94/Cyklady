@@ -4,8 +4,12 @@
 ##   przyciski i plansza → NetworkManager (intencje: ofiara, ruch, budowa, koniec tury),
 ##   sygnały             → odświeżenie widoku (view_changed, battle_reported, lobby_changed…).
 ## Plansza (scenes/board/Board.tscn w SubViewport) sama rysuje GameStateManager.view
-## i podświetla prawidłowe ruchy. Panel licytacji (scenes/ui/BiddingBoard.tscn)
-## sam pokazuje tory ofiar i przebicia. Tutaj zamieniamy ich sygnały na rozkazy.
+## i podświetla prawidłowe ruchy. Panele z scenes/ui/ same rysują swoją część stanu:
+## licytację (BiddingBoard), rekrutację i budowę (ActionPanel), tor stworów
+## (CreatureTrack), wybór wyspy dla Metropolii (MetropolisDialog) i koniec gry
+## (GameOverPanel). Tutaj zamieniamy ich sygnały na rozkazy dla serwera, a pola,
+## które panel każe wskazać (miejsce rekrutacji, cel mocy stwora), wskazuje się
+## na planszy (Board.pick_targets → target_picked).
 ## Ekrany przełączają się wyłącznie na sygnały: serwer wystartował albo klient
 ## został przyjęty → poczekalnia, przyszedł stan partii → panel gry.
 ## UI nigdy samo nie zmienia stanu gry. Rysuje wyłącznie projekcję od serwera,
@@ -31,10 +35,16 @@ const RECRUITS := {"TROOP": "oddział", "FLEET": "flota", "PRIEST": "kapłan", "
 @onready var _hint: Label = %HintLabel
 @onready var _bidding: BiddingBoardUI = %BiddingBoard
 @onready var _move_row: Control = %MoveRow
+@onready var _actions: ActionPanelUI = %ActionPanel
+@onready var _creatures: CreatureTrackUI = %CreatureTrack
+@onready var _metropolis: MetropolisDialogUI = %MetropolisDialog
+@onready var _game_over: GameOverPanelUI = %GameOverPanel
 
 ## Ostatnie wypisane zdarzenie z dziennika partii (numer `seq`) i partia, do której należy.
 var _last_event := 0
 var _game_id := ""
+## Na co czeka tryb wskazywania na planszy: { "for": "RECRUIT", "kind": … } albo { "for": "CREATURE" }.
+var _pick: Dictionary = {}
 
 
 func _ready() -> void:
@@ -45,9 +55,21 @@ func _ready() -> void:
 	# Licytacja: panel sprawdza ofiarę (BidRules) i dopiero poprawną wysyła do serwera.
 	_bidding.offer_confirmed.connect(NetworkManager.submit_bid)
 	%MoveButton.pressed.connect(func() -> void: NetworkManager.move_units(_from_edit.text.strip_edges(), _to_edit.text.strip_edges(), int(_count.value)))
-	# Tryb budowy na planszy: podświetlone wyspy z wolnym miejscem, kliknięcie wyspy to rozkaz budowy.
-	%BuildButton.pressed.connect(func() -> void: _board.highlight_valid_moves("", MoveRules.BUILD))
 	%EndTurnButton.pressed.connect(NetworkManager.end_turn)
+	# Panel akcji: rekrutacja (oddział i flota na polu wskazanym na planszy) i tryb budowy na planszy
+	# (podświetlone wyspy z wolnym miejscem, kliknięcie wyspy to rozkaz budowy).
+	_actions.recruit_requested.connect(_on_recruit_requested)
+	_actions.build_requested.connect(func() -> void:
+		_cancel_pick()
+		_board.highlight_valid_moves("", MoveRules.BUILD))
+	# Tor stworów: cel mocy wskazywany na planszy, gotowy zakup i akcja Zeusa.
+	_creatures.pick_requested.connect(_on_creature_pick_requested)
+	_creatures.pick_cancelled.connect(_cancel_pick)
+	_creatures.buy_confirmed.connect(NetworkManager.buy_creature)
+	_creatures.swap_confirmed.connect(NetworkManager.swap_creature)
+	# Metropolia: wyspę wybiera gracz, gdy ma więcej niż jedną możliwość. Koniec gry: wyjście.
+	_metropolis.site_chosen.connect(NetworkManager.place_metropolis)
+	_game_over.leave_requested.connect(_on_leave_pressed)
 	%LeaveButton.pressed.connect(_on_leave_pressed)
 
 	# Plansza: wybór pola, cel ruchu, wyspa do budowy i podpowiedzi.
@@ -55,6 +77,8 @@ func _ready() -> void:
 	_board.move_requested.connect(_on_board_move)
 	_board.build_requested.connect(func(island_id: String) -> void: NetworkManager.build(island_id))
 	_board.hint_changed.connect(func(text: String) -> void: _hint.text = text)
+	_board.target_picked.connect(_on_target_picked)
+	_board.pick_cancelled.connect(_on_board_pick_cancelled)
 
 	# Sygnały sieci (ekran gier LAN sam obsługuje swoje przyciski i komunikaty).
 	NetworkManager.server_started.connect(_on_server_started)
@@ -134,6 +158,60 @@ func _on_server_disconnected() -> void:
 func _on_action_rejected(code: String, message: String) -> void:
 	_log("[color=orange]Odmowa (%s): %s[/color]" % [code, message])
 	_bidding.on_action_rejected(code, message)
+	_actions.on_action_rejected(code, message)
+	_creatures.on_action_rejected(code, message)
+
+
+## Kapłan i filozof idą od razu do serwera. Oddziałowi i flocie plansza wskazuje najpierw
+## pola, które przyjmie serwer (RecruitRules.recruit_targets).
+func _on_recruit_requested(kind: String) -> void:
+	_cancel_pick()
+	if kind not in ["TROOP", "FLEET"]:
+		NetworkManager.recruit(kind, "")
+		return
+	var view := GameStateManager.view
+	var candidates := {}
+	for territory_id in RecruitRules.recruit_targets(view, String(view.get("you", "")), kind):
+		candidates[territory_id] = Board.TARGET_PICK
+	if candidates.is_empty():
+		_hint.text = "Nie ma pola, na którym serwer przyjmie nową jednostkę."
+		return
+	_pick = {"for": "RECRUIT", "kind": kind}
+	var what := "wyspę dla nowego oddziału" if kind == "TROOP" else "pole morskie dla nowej floty"
+	_board.pick_targets(candidates, "Wskaż %s. Esc: anuluj." % what)
+
+
+## Tor stworów prosi o wskazanie pola. Pusta lista celów kończy wskazywanie (np. po trasie Krakena).
+func _on_creature_pick_requested(candidates: Dictionary, prompt: String) -> void:
+	_pick = {"for": "CREATURE"} if not candidates.is_empty() else {}
+	_board.pick_targets(candidates, prompt)
+
+
+## Pole wskazane na planszy trafia tam, gdzie na nie czekano: do rekrutacji albo do toru stworów.
+func _on_target_picked(territory_id: String) -> void:
+	var pick := _pick
+	_pick = {}
+	match pick.get("for", ""):
+		"RECRUIT":
+			NetworkManager.recruit(String(pick["kind"]), territory_id)
+		"CREATURE":
+			_creatures.on_target_picked(territory_id)
+
+
+## Esc albo prawy przycisk na planszy: zakup stwora w toku też się kończy.
+func _on_board_pick_cancelled() -> void:
+	if _pick.get("for", "") == "CREATURE":
+		_creatures.on_pick_cancelled()
+	_pick = {}
+
+
+## Koniec wskazywania zamówionego przez panel (np. „Anuluj” w torze stworów albo inna akcja).
+func _cancel_pick() -> void:
+	if _pick.get("for", "") == "CREATURE":
+		_creatures.cancel_targeting()
+	_pick = {}
+	if _board.selected_action == Board.PICK:
+		_board.clear_selection()
 
 
 ## Wybrane pole startowe trafia do pola „skąd”, a licznik pokazuje, ile jednostek można zabrać (domyślnie wszystkie).
@@ -166,9 +244,13 @@ func _on_view_changed(view: Dictionary) -> void:
 	# Licytacja: tory ofiar. Tury bogów: ruch, budowa i koniec tury.
 	var actions: bool = view["phase"] == "ACTIONS"
 	_bidding.visible = view["phase"] == "BIDDING"
+	_actions.visible = actions
+	_creatures.visible = view["phase"] in ["BIDDING", "ACTIONS"]
 	_move_row.visible = actions
-	%BuildButton.visible = actions
 	%EndTurnButton.visible = actions
+	# Koniec twojej tury przerywa wskazywanie zamówione przez panel (rekrutacja, cel mocy stwora).
+	if not _pick.is_empty() and not GameStateManager.is_my_turn():
+		_cancel_pick()
 	# Nowe zdarzenia z dziennika partii (ofiary, przebicia, ruchy, rozłączenia…).
 	for event in view["log"]:
 		if int(event["seq"]) > _last_event:
@@ -209,26 +291,28 @@ func _describe(view: Dictionary, event: Dictionary) -> String:
 		"BUILD":
 			return "%s buduje %s na %s" % [who, event["building"], event["island"]]
 		"RECRUIT":
-			var place := " na %s" % event["target"] if event["target"] != "" else ""
+			var place := " na %s" % ArchipelagoMap.display_name(event["target"]) if event["target"] != "" else ""
 			return "%s: nowy %s%s (%d JZ)" % [who, RECRUITS.get(event["kind"], event["kind"]), place, event["cost"]]
+		"METROPOLIS_PENDING":
+			return "%s zakłada Metropolię i wybiera dla niej wyspę" % who
 		"METROPOLIS":
 			if event["island"] == "":
 				return "%s: nowa Metropolia zastępuje starą (brak wyspy bez Metropolii)" % who
-			return "[b]%s zakłada Metropolię na %s[/b]" % [who, event["island"]]
+			return "[b]%s zakłada Metropolię na %s[/b]" % [who, ArchipelagoMap.display_name(event["island"])]
 		"CREATURE":
 			return "%s przyzywa stwora: %s (%d JZ)" % [who, event["creature"], event["cost"]]
 		"SWAP_CREATURE":
 			return "%s (Zeus) odrzuca kartę %s, na tor wchodzi %s" % [who, event["discarded"], event["drawn"] if event["drawn"] != "" else "–"]
 		"GIANT":
-			return "Gigant niszczy %s na %s" % [event["building"], event["island"]]
+			return "Gigant niszczy %s na %s" % [event["building"], ArchipelagoMap.display_name(event["island"])]
 		"HARPY":
-			return "Harpia porywa oddział z %s" % event["island"]
+			return "Harpia porywa oddział z %s" % ArchipelagoMap.display_name(event["island"])
 		"KRAKEN":
-			return "Kraken wynurza się na %s (zniszczone pola z flotami: %d)" % [event["sea"], event["destroyed"].size()]
+			return "Kraken wynurza się na %s (zniszczone pola z flotami: %d)" % [ArchipelagoMap.display_name(event["sea"]), event["destroyed"].size()]
 		"MINOTAUR":
-			return "Minotaur strzeże wyspy %s" % event["island"]
+			return "Minotaur strzeże wyspy %s" % ArchipelagoMap.display_name(event["island"])
 		"MINOTAUR_GONE":
-			return "Minotaur opuszcza wyspę %s" % event["island"]
+			return "Minotaur opuszcza wyspę %s" % ArchipelagoMap.display_name(event["island"])
 		"GAME_OVER":
 			return "[b]Koniec gry! Wygrywa: %s[/b]" % _winner_names(view)
 		"BATTLE":

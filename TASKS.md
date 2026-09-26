@@ -55,7 +55,7 @@ Do zrobienia:
 - [ ] **Hades w Godot**: rzut na Kolumnę Hadesa, Hades na torze licytacji, rekrutacja nieumarłych, Nekropolie, powrót nieumarłych do puli na koniec cyklu
 - [ ] **Monumenty w Godot**: rozdanie kart, automatyczne stawianie figurki, efekty w bitwie (Wielka Cytadela Aresa, Port Wojenny)
 - [ ] **Wariant 2-osobowy**: liczba bogów w cyklu i 2 znaczniki ofiary na gracza
-- [ ] **Weryfikacja założeń z instrukcją**: wszystkie `[zweryfikuj]` z ARCHITEKTURA.md i NAWIGACJA.md (złoto startowe, bogowie wg liczby graczy, tor stworów, parametry Hadesa, zasady Monumentów, Teatr, koszt ruchu) oraz założenia Godota: Metropolię stawia serwer (w grze wybiera gracz), Minotaur tylko na własnej wyspie
+- [ ] **Weryfikacja założeń z instrukcją**: wszystkie `[zweryfikuj]` z ARCHITEKTURA.md i NAWIGACJA.md (złoto startowe, bogowie wg liczby graczy, tor stworów, parametry Hadesa, zasady Monumentów, Teatr, koszt ruchu) oraz założenia Godota: serwer stawia Metropolię sam tylko dla AI, przy jednej wyspie i na koniec tury bez wyboru; Minotaur tylko na własnej wyspie
 
 ## 2. Dane gry
 
@@ -78,7 +78,7 @@ Zrobione:
 
 Do zrobienia:
 
-- [x] **RPC dla rekrutacji i stworów**: `rpc_recruit`, `rpc_buy_creature`, `rpc_swap_creature`, walidacja wyłącznie na serwerze, odmowa tylko do nadawcy
+- [x] **RPC dla rekrutacji, stworów i Metropolii**: `rpc_recruit`, `rpc_buy_creature`, `rpc_swap_creature`, `rpc_place_metropolis`, walidacja wyłącznie na serwerze, odmowa tylko do nadawcy
 - [ ] **RPC dla kolejnych akcji**: tura Hadesa i odwrót w bitwie
 - [ ] **Zegar tury w Godot**: limity czasu decyzji i ruch pasywny, tak jak `src/net/turnClock.ts`
 - [ ] **Lobby w Godot**: wybór koloru i miasta, gotowość graczy (jak `Room.handleLobby` w TS). Dziś kolory przydziela kolejność przy stole
@@ -102,17 +102,19 @@ Zrobione:
 - [x] **Ekran „Gry w sieci lokalnej”** (`LanLobby.tscn`): lista gier, dołączenie, nowa gra LAN, „Połącz przez IP”, gra solo
 - [x] **Plansza „Archipelag”**: pola `TerritoryNode` z shaderem, wybór, podświetlanie ruchów zgodne z serwerem
 - [x] **Panel licytacji**: tory ofiar, kolejka Apolla, koszt z kapłanami, przebicie z animacją i dźwiękiem
+- [x] **Panel akcji** (`scenes/ui/ActionPanel.tscn`): rekrutacja z kosztem następnej jednostki, zakupami, które zostały w turze, i limitem figurek; budowa z ceną i wolnymi miejscami. Pole dla oddziału i floty gracz wskazuje na planszy
+- [x] **Tor stworów** (`scenes/ui/CreatureTrack.tscn`): karty od pola za 4 JZ do pola za 2 JZ, cena po zniżce ze Świątyń, zakup z celem mocy wskazywanym krok po kroku na planszy, wymiana karty w turze Zeusa
+- [x] **Wybór wyspy dla Metropolii** (`scenes/ui/MetropolisDialog.tscn`): serwer czeka na wybór człowieka, który ma kilka wysp bez Metropolii
+- [x] **Okno końca gry** (`scenes/ui/GameOverPanel.tscn`): zwycięzca z 2 Metropoliami, przewaga złota albo remis, wyjście z partii
+- [x] **Tryb wskazywania pola na planszy** (`Board.pick_targets`): wspólny dla rekrutacji i celów mocy stworów
 
 Do zrobienia:
 
 - [ ] **Menu główne** (`scenes/main_menu/`): gra solo, gra LAN, ustawienia, wyjście. Dziś `Main.tscn` łączy menu, poczekalnię i grę
 - [ ] **Poczekalnia** (`scenes/lobby/`): gracze, kolory, miasta, dodatki, gotowość, start
 - [ ] **Panel gracza** (`scenes/ui/`): złoto, kapłani, filozofowie, dochód, karta Monumentu
-- [ ] **Tura boga**: przyciski rekrutacji i budowy właściwe dla boga (dane z `GameData`)
-- [ ] **Tor stworów**: karty na polach 2/3/4 JZ z ceną po zniżce, zakup, wybór celu mocy, wymiana kartą Zeusa
 - [ ] **Figurki na planszy**: Kraken na polu morskim i Minotaur na wyspie (dziś widać je tylko w dzienniku)
 - [ ] **Okno bitwy**: raport rundy, rzut, decyzja o odwrocie
-- [ ] **Ekran końca gry**: dziś zwycięzców podają pasek stanu i dziennik
 - [ ] **Grafika, dźwięk i czcionki** (`assets/`): czcionka z symbolami ⚔ ☠ ⚓ ★, których nie ma wbudowana czcionka Godota (dziś etykiety planszy używają liter i `†`)
 - [ ] **Tłumaczenia**: nazwy z `GameData` jako klucze tłumaczeń
 - [ ] **Zapamiętanie gracza**: imię, ostatni host i żeton powrotu w `ConfigFile` w `user://`

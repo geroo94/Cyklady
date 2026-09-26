@@ -1,9 +1,13 @@
-[gd_scene load_steps=5 format=3]
+[gd_scene load_steps=9 format=3]
 
 [ext_resource type="Script" path="res://scenes/main.gd" id="1_main"]
 [ext_resource type="PackedScene" path="res://scenes/LanLobby.tscn" id="2_lobby"]
 [ext_resource type="PackedScene" path="res://scenes/board/Board.tscn" id="3_board"]
 [ext_resource type="PackedScene" path="res://scenes/ui/BiddingBoard.tscn" id="4_bidding"]
+[ext_resource type="PackedScene" path="res://scenes/ui/ActionPanel.tscn" id="5_actions"]
+[ext_resource type="PackedScene" path="res://scenes/ui/CreatureTrack.tscn" id="6_creatures"]
+[ext_resource type="PackedScene" path="res://scenes/ui/MetropolisDialog.tscn" id="7_metropolis"]
+[ext_resource type="PackedScene" path="res://scenes/ui/GameOverPanel.tscn" id="8_game_over"]
 
 [node name="Main" type="Control"]
 layout_mode = 3
@@ -92,16 +96,21 @@ size = Vector2i(420, 360)
 [node name="Board" parent="Margin/Layout/Game/MapView/MapViewport" instance=ExtResource("3_board")]
 unique_name_in_owner = true
 
-[node name="Side" type="VBoxContainer" parent="Margin/Layout/Game"]
+[node name="SideScroll" type="ScrollContainer" parent="Margin/Layout/Game"]
+layout_mode = 2
+size_flags_horizontal = 3
+horizontal_scroll_mode = 0
+
+[node name="Side" type="VBoxContainer" parent="Margin/Layout/Game/SideScroll"]
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="StatusLabel" type="Label" parent="Margin/Layout/Game/Side"]
+[node name="StatusLabel" type="Label" parent="Margin/Layout/Game/SideScroll/Side"]
 unique_name_in_owner = true
 layout_mode = 2
 autowrap_mode = 3
 
-[node name="HintLabel" type="Label" parent="Margin/Layout/Game/Side"]
+[node name="HintLabel" type="Label" parent="Margin/Layout/Game/SideScroll/Side"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 48)
 layout_mode = 2
@@ -109,53 +118,57 @@ theme_override_colors/font_color = Color(1, 0.93, 0.62, 1)
 autowrap_mode = 3
 text = "Najedź na pole planszy, żeby zobaczyć szczegóły."
 
-[node name="BiddingBoard" parent="Margin/Layout/Game/Side" instance=ExtResource("4_bidding")]
+[node name="BiddingBoard" parent="Margin/Layout/Game/SideScroll/Side" instance=ExtResource("4_bidding")]
 unique_name_in_owner = true
 layout_mode = 2
 
-[node name="MoveRow" type="HBoxContainer" parent="Margin/Layout/Game/Side"]
+[node name="ActionPanel" parent="Margin/Layout/Game/SideScroll/Side" instance=ExtResource("5_actions")]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+
+[node name="CreatureTrack" parent="Margin/Layout/Game/SideScroll/Side" instance=ExtResource("6_creatures")]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+
+[node name="MoveRow" type="HBoxContainer" parent="Margin/Layout/Game/SideScroll/Side"]
 unique_name_in_owner = true
 layout_mode = 2
 
-[node name="FromEdit" type="LineEdit" parent="Margin/Layout/Game/Side/MoveRow"]
+[node name="FromEdit" type="LineEdit" parent="Margin/Layout/Game/SideScroll/Side/MoveRow"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(110, 0)
 layout_mode = 2
 placeholder_text = "skąd (np. arch_n)"
 
-[node name="ToEdit" type="LineEdit" parent="Margin/Layout/Game/Side/MoveRow"]
+[node name="ToEdit" type="LineEdit" parent="Margin/Layout/Game/SideScroll/Side/MoveRow"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(110, 0)
 layout_mode = 2
 placeholder_text = "dokąd"
 
-[node name="CountSpin" type="SpinBox" parent="Margin/Layout/Game/Side/MoveRow"]
+[node name="CountSpin" type="SpinBox" parent="Margin/Layout/Game/SideScroll/Side/MoveRow"]
 unique_name_in_owner = true
 layout_mode = 2
 min_value = 1.0
 max_value = 20.0
 value = 1.0
 
-[node name="MoveButton" type="Button" parent="Margin/Layout/Game/Side/MoveRow"]
+[node name="MoveButton" type="Button" parent="Margin/Layout/Game/SideScroll/Side/MoveRow"]
 unique_name_in_owner = true
 layout_mode = 2
 text = "Ruch"
 
-[node name="TurnRow" type="HBoxContainer" parent="Margin/Layout/Game/Side"]
+[node name="TurnRow" type="HBoxContainer" parent="Margin/Layout/Game/SideScroll/Side"]
 layout_mode = 2
 
-[node name="BuildButton" type="Button" parent="Margin/Layout/Game/Side/TurnRow"]
-unique_name_in_owner = true
-layout_mode = 2
-tooltip_text = "Podświetla wyspy, na których możesz postawić budynek boga, którego tura trwa. Kliknij wyspę, żeby budować."
-text = "Buduj…"
-
-[node name="EndTurnButton" type="Button" parent="Margin/Layout/Game/Side/TurnRow"]
+[node name="EndTurnButton" type="Button" parent="Margin/Layout/Game/SideScroll/Side/TurnRow"]
 unique_name_in_owner = true
 layout_mode = 2
 text = "Koniec tury"
 
-[node name="LeaveButton" type="Button" parent="Margin/Layout/Game/Side/TurnRow"]
+[node name="LeaveButton" type="Button" parent="Margin/Layout/Game/SideScroll/Side/TurnRow"]
 unique_name_in_owner = true
 layout_mode = 2
 text = "Wyjdź z gry"
@@ -166,3 +179,11 @@ layout_mode = 2
 size_flags_vertical = 3
 bbcode_enabled = true
 scroll_following = true
+
+[node name="MetropolisDialog" parent="." instance=ExtResource("7_metropolis")]
+unique_name_in_owner = true
+layout_mode = 1
+
+[node name="GameOverPanel" parent="." instance=ExtResource("8_game_over")]
+unique_name_in_owner = true
+layout_mode = 1

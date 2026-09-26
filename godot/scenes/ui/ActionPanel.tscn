@@ -1,0 +1,62 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/ActionPanelUI.gd" id="1_panel"]
+
+[node name="ActionPanel" type="PanelContainer"]
+offset_right = 420.0
+offset_bottom = 110.0
+script = ExtResource("1_panel")
+
+[node name="Content" type="VBoxContainer" parent="."]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="TitleLabel" type="Label" parent="Content"]
+unique_name_in_owner = true
+layout_mode = 2
+autowrap_mode = 3
+text = "Tura boga"
+
+[node name="RecruitRow" type="HBoxContainer" parent="Content"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="RecruitButton" type="Button" parent="Content/RecruitRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(180, 0)
+layout_mode = 2
+size_flags_vertical = 4
+tooltip_text = "Pozyskaj jednostkę boga tury. Miejsce dla oddziału albo floty wskażesz na planszy."
+text = "Rekrutuj"
+
+[node name="RecruitInfo" type="Label" parent="Content/RecruitRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+autowrap_mode = 3
+
+[node name="BuildRow" type="HBoxContainer" parent="Content"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="BuildButton" type="Button" parent="Content/BuildRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(180, 0)
+layout_mode = 2
+size_flags_vertical = 4
+tooltip_text = "Podświetla wyspy, na których możesz postawić budynek boga, którego tura trwa. Kliknij wyspę, żeby budować."
+text = "Buduj…"
+
+[node name="BuildInfo" type="Label" parent="Content/BuildRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+autowrap_mode = 3
+
+[node name="NoticeLabel" type="Label" parent="Content"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.7, 0.42, 1)
+autowrap_mode = 3

@@ -30,13 +30,18 @@ godot/
 │   │   ├── board.gd              plansza: pola, wybór, highlight_valid_moves(), rozkazy
 │   │   ├── TerritoryNode.gd      pole planszy (Area2D): stan, wygląd, najechanie, kliknięcie
 │   │   ├── BiddingBoardUI.gd     panel licytacji: tryby, walidacja przed RPC, przebicie (animacja, dźwięk)
-│   │   └── OfferingTrack.gd      tor ofiar jednego boga (pola 1–10 i „10+”)
+│   │   ├── OfferingTrack.gd      tor ofiar jednego boga (pola 1–10 i „10+”)
+│   │   ├── ActionPanelUI.gd      panel akcji w turze boga: rekrutacja i budowa (rozdział 10)
+│   │   ├── CreatureTrackUI.gd    tor stworów: ceny, zakup z celem mocy, akcja Zeusa
+│   │   ├── MetropolisDialogUI.gd okno wyboru wyspy dla Metropolii
+│   │   └── GameOverPanelUI.gd    okno końca gry: zwycięzca, przewaga złota, remis
 │   └── ai/                       na razie puste: miejsce na wydzieloną AI (TASKS.md, rozdział 4)
 ├── scenes/
 │   ├── Main.tscn, main.gd        scena główna: lista gier LAN, poczekalnia, panel partii, dziennik
 │   ├── LanLobby.tscn, lan_lobby.gd  ekran „Gry w sieci lokalnej” (ItemList + przyciski)
 │   ├── board/Board.tscn          scena planszy (skrypt scripts/ui/board.gd)
 │   ├── ui/BiddingBoard.tscn      panel licytacji: tory bogów, Apollo, kwota, tacka, dźwięk
+│   ├── ui/ActionPanel.tscn, CreatureTrack.tscn, MetropolisDialog.tscn, GameOverPanel.tscn  sceny paneli tur bogów
 │   └── main_menu/, lobby/        na razie puste: docelowe miejsca scen menu i poczekalni
 ├── assets/
 │   ├── shaders/territory.gdshader  wypełnienie pola: kolor właściciela, podświetlenie, pulsowanie
@@ -83,24 +88,26 @@ W `project.godot` z repozytorium wszystkie trzy autoloady są już wpisane.
 ├── NetworkManager            autoload: serwer / klient ENet, RPC, miejsca, żetony, rozłączenia
 │   └── LanBeacon             tworzony przez host_game(), usuwany przez leave_game()
 └── Main (Control)            scena główna (main.gd)
-    └── Margin / Layout (VBoxContainer)
-        ├── %Browser          instancja LanLobby.tscn (lan_lobby.gd)
-        │   ├── LanListener   odbiornik ogłoszeń
-        │   ├── %NameEdit     imię gracza
-        │   ├── %ServerList   ItemList: gry w sieci lokalnej
-        │   ├── %SearchLabel  „Szukam gier…”, gdy lista jest pusta
-        │   ├── %JoinButton   „Dołącz do wybranej gry”
-        │   ├── CreateRow     %ServerNameEdit, %HadesCheck, %MonumentsCheck, %CreateButton („Stwórz Grę LAN”)
-        │   ├── DirectRow     %AddressEdit, %DirectButton („Połącz przez IP”)
-        │   ├── %SingleButton „Gra solo z AI”
-        │   └── %StatusLabel  komunikaty (łączenie, błędy)
-        ├── %WaitingRoom      poczekalnia: %WaitingLabel, %AddAiButton, %StartButton (host), %WaitingLeaveButton
-        ├── %Game             HBoxContainer: mapa po lewej, panel po prawej
-        │   ├── %MapView      SubViewportContainer → MapViewport (SubViewport) → %Board (Board.tscn)
-        │   └── Side          %StatusLabel, %HintLabel, %BiddingBoard (BiddingBoard.tscn, w licytacji),
-        │                     %MoveRow (FromEdit, ToEdit, CountSpin, MoveButton), BuildButton („Buduj…”),
-        │                     EndTurnButton (w turach bogów), LeaveButton
-        └── %Log              RichTextLabel (dziennik, raporty bitew)
+    ├── Margin / Layout (VBoxContainer)
+    │   ├── %Browser          instancja LanLobby.tscn (lan_lobby.gd)
+    │   │   ├── LanListener   odbiornik ogłoszeń
+    │   │   ├── %NameEdit     imię gracza
+    │   │   ├── %ServerList   ItemList: gry w sieci lokalnej
+    │   │   ├── %SearchLabel  „Szukam gier…”, gdy lista jest pusta
+    │   │   ├── %JoinButton   „Dołącz do wybranej gry”
+    │   │   ├── CreateRow     %ServerNameEdit, %HadesCheck, %MonumentsCheck, %CreateButton („Stwórz Grę LAN”)
+    │   │   ├── DirectRow     %AddressEdit, %DirectButton („Połącz przez IP”)
+    │   │   ├── %SingleButton „Gra solo z AI”
+    │   │   └── %StatusLabel  komunikaty (łączenie, błędy)
+    │   ├── %WaitingRoom      poczekalnia: %WaitingLabel, %AddAiButton, %StartButton (host), %WaitingLeaveButton
+    │   ├── %Game             HBoxContainer: mapa po lewej, panel po prawej
+    │   │   ├── %MapView      SubViewportContainer → MapViewport (SubViewport) → %Board (Board.tscn)
+    │   │   └── SideScroll    ScrollContainer → Side: %StatusLabel, %HintLabel, %BiddingBoard (w licytacji),
+    │   │                     %ActionPanel (w turach bogów), %CreatureTrack (w licytacji i turach bogów),
+    │   │                     %MoveRow (FromEdit, ToEdit, CountSpin, MoveButton), EndTurnButton, LeaveButton
+    │   └── %Log              RichTextLabel (dziennik, raporty bitew)
+    ├── %MetropolisDialog     okno nad całą sceną: wybór wyspy dla Metropolii (tylko gracz, na którego czeka serwer)
+    └── %GameOverPanel        okno nad całą sceną w fazie GAME_OVER
 ```
 
 - **`%`**: węzeł ma włączone *Access as Unique Name*, więc skrypt jego sceny sięga do niego przez `%Nazwa` niezależnie od zagnieżdżenia.
@@ -366,6 +373,8 @@ sequenceDiagram
 | Board | `move_requested(from_id, to_id, action_type)` | gracz wskazał cel ruchu |
 | Board | `build_requested(island_id)` | gracz wskazał wyspę do budowy |
 | Board | `hint_changed(text)` | opis pola pod kursorem, cele, powód braku ruchu albo potwierdzenie rozkazu |
+| Board | `target_picked(territory_id)` | tryb wskazywania (`pick_targets`): gracz kliknął jeden z podanych celów |
+| Board | `pick_cancelled` | tryb wskazywania anulowany (Esc albo prawy przycisk) |
 
 **Dotyk.** Przy domyślnym ustawieniu projektu (*Input Devices → Pointing →
 Emulate Mouse From Touch*) dotknięcie przychodzi też jako kliknięcie myszą.
@@ -553,6 +562,7 @@ sequenceDiagram
 | klient → serwer | jw. | `rpc_recruit(kind, target_id)` | rekrutacja w turze boga: `TROOP`, `FLEET`, `PRIEST`, `PHILOSOPHER` (rozdział 10) |
 | klient → serwer | jw. | `rpc_buy_creature(slot, params)` | zakup stwora z pola toru i cel jego mocy |
 | klient → serwer | jw. | `rpc_swap_creature(slot)` | akcja Zeusa: wymiana karty z toru na wierzch talii |
+| klient → serwer | jw. | `rpc_place_metropolis(island_id)` | wybór wyspy dla Metropolii, na który czeka serwer |
 | klient → serwer | jw. | `rpc_end_turn()` | koniec tury boga |
 | serwer → klient | `@rpc("authority", "call_remote", "reliable")` | `rpc_registered(player_id, token)` | miejsce przy stole i żeton powrotu |
 | serwer → klient | jw. | `rpc_registration_refused(code, message)` | odmowa: partia trwa, brak miejsc, żeton wygasł |
@@ -647,9 +657,10 @@ Obce połączenie z gry solo serwer rozłącza od razu.
 godot --headless --path godot res://tests/RunTests.tscn
 ```
 
-Kod wyjścia 0 oznacza, że wszystkie testy przeszły. Testów jest 57 i obejmują:
+Kod wyjścia 0 oznacza, że wszystkie testy przeszły. Testów jest 66 i obejmują:
 - dane gry: spójność `GameData` (walidator), zgodność bogów i budynków z regułami serwera, talie z dodatkami i bez;
-- tury bogów: rekrutację (koszty 0/2/3/4 i 0/1/2/3 JZ, kapłani i filozofowie, limity w turze, 8 figurek, miejsca, odmowy bez zmiany stanu), Metropolie z budynków i z filozofów, Metropolię w obronie, koniec gry z remisem w złocie i wyjątek ostatniej wyspy;
+- tury bogów: rekrutację (koszty 0/2/3/4 i 0/1/2/3 JZ, kapłani i filozofowie, limity w turze, 8 figurek, miejsca, odmowy bez zmiany stanu), Metropolie z budynków i z filozofów, wybór wyspy dla Metropolii (także przez RPC i na koniec tury bez wyboru), Metropolię w obronie, koniec gry z wynikiem i remisem w złocie oraz wyjątek ostatniej wyspy;
+- panele tur bogów: panel akcji (koszt następnej jednostki, limity, budowa, cudza tura), tor stworów (kolejność 4/3/2 JZ, ceny ze Świątyniami, zakup i wymiana tylko we właściwej turze, cel mocy krok po kroku dla każdego stwora), dialog Metropolii, panel końca gry, tryb wskazywania pola na planszy i pełna ścieżka w `Main.tscn` (rekrutacja i Harpia kliknięciami na planszy, wybór wyspy dla Metropolii, koniec gry);
 - stwory: tor i jego odświeżanie, talię ukrytą w projekcji, ceny ze Świątyniami, akcję Zeusa oraz moce Giganta, Harpii, Pegaza, Krakena i Minotaura;
 - reguły: licytację, przebicie i kapłanów, ruchy i most z flot, bitwy z Fortecami i Portami, rozkład kości, projekcję, koniec cyklu i AI;
 - sieć: synchronizację projekcji, odrzucanie ruchów poza kolejką i podszywania się pod serwer, przebicie przez sieć, ten sam raport bitwy u wszystkich, rekrutację, wymianę karty i zakup stwora przez RPC;
@@ -718,6 +729,7 @@ Klient wysyła je przez `NetworkManager` (`recruit`, `buy_creature`, `swap_creat
 | Zakup stwora | w turze dowolnego boga; każda Świątynia (i Metropolia) obniża cenę o 1 JZ raz na turę, ale płaci się co najmniej 1 JZ | `CreatureRules.price` |
 | Akcja Zeusa | za 1 JZ karta z toru idzie na stos, a jej miejsce zajmuje wierzch talii | `apply_swap_creature` |
 | Metropolia | komplet 4 różnych budynków (także z kilku wysp) albo 4 filozofów od razu zamienia się w Metropolię; jedna na wyspę, działa jak Forteca i Port | `_apply_state_effects` |
+| Miejsce Metropolii | człowiek z kilkoma wyspami bez Metropolii wybiera wyspę (`pending_metropolis`, `apply_place_metropolis`); przy jednej wyspie, dla AI i na koniec tury bez wyboru stawia ją serwer | `MetropolisDialogUI`, `rpc_place_metropolis` |
 | Koniec gry | na koniec cyklu wygrywa gracz z 2 Metropoliami; przy kilku takich decyduje złoto, a przy równym złocie wygrywają wszyscy (faza `GAME_OVER`, pole `winners`) | `apply_end_turn`, `_winners` |
 | Ostatnia wyspa | atak jest dozwolony, gdy da atakującemu drugą Metropolię | `MoveRules.last_island_protected` |
 
@@ -731,9 +743,19 @@ Moce stworów (`params` przy zakupie):
 | Kraken | `{ sea, path? }` | niszczy floty na polu i na trasie (+1 JZ za każde pole); na jego pole nie wpłynie żadna flota |
 | Minotaur | `{ island }` | na własnej wyspie broni jak 2 oddziały i ginie po nich; znika na początku następnej tury kupującego |
 
-- **Założenia `[zweryfikuj]`.** Metropolię stawia serwer na wyspie z największą liczbą różnych budynków kompletu (w grze wybiera gracz). Metropolia ma na wyspie osobne miejsce, jak w modelu TS. Minotaura można postawić tylko na własnej wyspie.
+- **Założenia `[zweryfikuj]`.** Gdy wybiera serwer (AI, koniec tury bez wyboru), Metropolia staje na wyspie z największą liczbą różnych budynków kompletu. Metropolia ma na wyspie osobne miejsce, jak w modelu TS. Minotaura można postawić tylko na własnej wyspie.
+- **Wynik gry.** Na koniec gry stan ma `result`: zwycięzców, kandydatów z 2 Metropoliami i ich złoto (od tej chwili jawne, bo rozstrzyga remis).
 - **Tajna talia.** Projekcja podaje z talii stworów tylko liczbę kart (`creatures.deck_size`).
-- **Interfejs.** Przyciski rekrutacji, tor stworów i figurki Krakena oraz Minotaura na planszy to kolejne zadania (TASKS.md, rozdział 5). Dziś akcje są dostępne przez API `NetworkManager`, a dziennik partii je opisuje.
+- **Interfejs.** Panele z `scenes/ui/` rysują projekcję i sprawdzają akcje tymi samymi regułami co serwer, a na zewnątrz wysyłają tylko intencje. `main.gd` zamienia je na wywołania `NetworkManager` (`recruit`, `build`, `buy_creature`, `swap_creature`, `place_metropolis`), które u klienta wysyłają RPC do hosta, a u hosta działają lokalnie:
+
+  | Panel | Co pokazuje | Intencje |
+  |---|---|---|
+  | `ActionPanel` | jednostka boga i koszt następnej sztuki, ile można jeszcze dokupić, figurki na planszy; budynek boga, koszt i wolne miejsca | `recruit_requested(kind)`: oddział i flota dostają pole wskazane na planszy (`RecruitRules.recruit_targets`), kapłan i filozof idą od razu; `build_requested`: tryb budowy na planszy |
+  | `CreatureTrack` | karty od pola za 4 JZ do pola za 2 JZ, cena po zniżce ze Świątyń, talia i stos; „Wymień (1 JZ)” w turze Zeusa | `pick_requested(cele, podpowiedź)` → plansza → `on_target_picked`; `buy_confirmed(slot, params)`, `swap_confirmed(slot)` |
+  | `MetropolisDialog` | wyspy do wyboru, gdy serwer czeka na gracza | `site_chosen(island_id)` |
+  | `GameOverPanel` | zwycięzca z 2 Metropoliami, przewaga złota albo remis | `leave_requested` |
+
+- **Figurki na planszy.** Kraken i Minotaur są na razie widoczne tylko w dzienniku partii (TASKS.md, rozdział 5).
 
 ## 11. Uproszczenia
 

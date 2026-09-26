@@ -154,8 +154,11 @@ func start_new_game(players: Array, expansions: Dictionary = {}) -> Dictionary:
 		"turn_index": 0,
 		# Zakupy w bieżącej turze boga (liczniki rekrutacji), zob. _turn_progress.
 		"turn_progress": {},
-		# Zwycięzcy po końcu gry (faza GAME_OVER).
+		# Zwycięzcy po końcu gry (faza GAME_OVER) i wynik: kandydaci z 2 Metropoliami i ich złoto.
 		"winners": [],
+		"result": {},
+		# Metropolia, dla której serwer czeka na wybór wyspy: { "player", "origin", "sites" }.
+		"pending_metropolis": {},
 		# Tor stworów: pole 0 za 2 JZ (najstarsza karta), 1 za 3 JZ, 2 za 4 JZ. Talia jest zakryta
 		# (projekcja podaje tylko jej rozmiar), a stos odrzuconych odkryty.
 		"creatures": {"slots": ["", "", ""], "deck": [], "discard": []},
@@ -367,19 +370,37 @@ func apply_swap_creature(player_id: String, slot: int) -> Dictionary:
 	return _ok()
 
 
+## Wybór wyspy dla Metropolii, na który czeka serwer (`pending_metropolis`). Składniki zniknęły
+## już przy zakładaniu Metropolii, więc teraz tylko staje ona na wybranej wyspie.
+func apply_place_metropolis(player_id: String, island_id: String) -> Dictionary:
+	var pending: Dictionary = _state.get("pending_metropolis", {})
+	if pending.get("player", "") != player_id:
+		return _fail("NOTHING_TO_PLACE", "Serwer nie czeka na twoją Metropolię.")
+	if island_id not in pending["sites"] or not _metropolis_sites(player_id).has(island_id):
+		var names := PackedStringArray(pending["sites"].map(func(site: String) -> String: return ArchipelagoMap.display_name(site)))
+		return _fail("INVALID_SITE", "Metropolia może stanąć na: %s." % ", ".join(names))
+	_state["pending_metropolis"] = {}
+	_place_metropolis(player_id, island_id, String(pending["origin"]))
+	_commit()
+	return _ok()
+
+
 ## Koniec tury boga. Po ostatniej turze zaczyna się nowy cykl.
 func apply_end_turn(player_id: String) -> Dictionary:
 	var error := _god_turn_error(player_id)
 	if not error.is_empty():
 		return error
+	# Metropolia bez wybranej wyspy staje tam, gdzie postawiłby ją serwer: tura się kończy.
+	_resolve_pending_metropolis(player_id)
 	_log({"type": "END_TURN", "player": player_id})
 	_state["turn_index"] = int(_state["turn_index"]) + 1
 	if _state["turn_index"] >= _state["turns"].size():
-		var winners := _winners()
-		if not winners.is_empty():
+		var result := _victory()
+		if not result.is_empty():
 			_state["phase"] = "GAME_OVER"
-			_state["winners"] = winners
-			_log({"type": "GAME_OVER", "winners": winners.duplicate()})
+			_state["winners"] = result["winners"]
+			_state["result"] = result
+			_log({"type": "GAME_OVER", "winners": result["winners"].duplicate()})
 		else:
 			# Kolejność licytacji w następnym cyklu to kolejność tur w tym cyklu.
 			var order: Array = []
@@ -864,14 +885,34 @@ func _commit() -> void:
 ## Efekty stanowe po każdej zmianie w trakcie partii: komplet czterech różnych budynków
 ## albo czterech filozofów od razu zamienia się w Metropolię (zdobycie wyspy też może
 ## domknąć komplet). Metropolia działa jak każdy budynek, ale nie tworzy kolejnego kompletu.
+## Składniki znikają od razu. Gdy człowiek ma kilka wysp bez Metropolii, serwer czeka na jego
+## wybór (`pending_metropolis`, apply_place_metropolis). AI i gracz z jedną możliwą wyspą nie wybierają.
 func _apply_state_effects() -> void:
 	if not is_game_running():
 		return
 	for player_id in _state["seating"]:
-		while _has_building_set(player_id):
-			_found_metropolis(player_id, "BUILDINGS")
-		while int(_state["players"][player_id].get("philosophers", 0)) >= PHILOSOPHERS_PER_METROPOLIS:
-			_found_metropolis(player_id, "PHILOSOPHERS")
+		var pending: Dictionary = _state.get("pending_metropolis", {})
+		if pending.get("player", "") == player_id:
+			if not _state["players"][player_id]["is_ai"]:
+				continue  # czekamy na wybór gracza
+			_resolve_pending_metropolis(player_id)  # miejsce przejęło AI: wybiera serwer
+		while true:
+			var origin := ""
+			if _has_building_set(player_id):
+				origin = "BUILDINGS"
+			elif int(_state["players"][player_id].get("philosophers", 0)) >= PHILOSOPHERS_PER_METROPOLIS:
+				origin = "PHILOSOPHERS"
+			else:
+				break
+			var sites := _metropolis_sites(player_id)
+			# Wybór serwera liczony przed zużyciem budynków: to z tej wyspy znikają one najpierw.
+			var best := _best_metropolis_site(sites)
+			_consume_metropolis_parts(player_id, origin, best)
+			if sites.size() > 1 and not _state["players"][player_id]["is_ai"]:
+				_state["pending_metropolis"] = {"player": player_id, "origin": origin, "sites": sites}
+				_log({"type": "METROPOLIS_PENDING", "player": player_id, "origin": origin, "sites": sites.duplicate()})
+				break
+			_place_metropolis(player_id, best, origin)
 
 
 func _has_building_set(player_id: String) -> bool:
@@ -882,32 +923,53 @@ func _has_building_set(player_id: String) -> bool:
 	return METROPOLIS_BUILDINGS.all(func(building: String) -> bool: return building in owned)
 
 
-## Nowa Metropolia: znikają cztery różne budynki (najpierw z wyspy Metropolii) albo czterej
-## filozofowie. Gdy każda wyspa gracza ma już Metropolię, nowa „zastępuje” starą: składniki
-## przepadają, a liczba Metropolii się nie zmienia (tak instrukcja opisuje filozofów).
-func _found_metropolis(player_id: String, origin: String) -> void:
-	var site := _metropolis_site(player_id)
+## Zużycie składników nowej Metropolii: cztery różne budynki (najpierw z wyspy `preferred`)
+## albo czterech filozofów.
+func _consume_metropolis_parts(player_id: String, origin: String, preferred: String) -> void:
 	if origin == "PHILOSOPHERS":
 		var player: Dictionary = _state["players"][player_id]
 		player["philosophers"] = int(player["philosophers"]) - PHILOSOPHERS_PER_METROPOLIS
 	else:
 		for building in METROPOLIS_BUILDINGS:
-			_remove_building(player_id, building, site)
+			_remove_building(player_id, building, preferred)
+
+
+## Metropolia staje na wyspie `site`. Pusta wyspa oznacza, że każda wyspa gracza ma już Metropolię:
+## nowa „zastępuje” wtedy starą, więc liczba Metropolii się nie zmienia (tak instrukcja opisuje filozofów).
+func _place_metropolis(player_id: String, site: String, origin: String) -> void:
 	if site != "":
 		_state["islands"][site]["metropolis"] = true
 	_log({"type": "METROPOLIS", "player": player_id, "island": site, "origin": origin})
 
 
-## Miejsce na Metropolię: wyspa gracza bez Metropolii z największą liczbą różnych budynków
-## z kompletu, a przy remisie pierwsza w kolejności mapy. [zweryfikuj] W grze wybiera gracz.
-func _metropolis_site(player_id: String) -> String:
-	var best := ""
-	var best_score := -1
+## Metropolia, na której miejsce serwer wciąż czeka, staje tam, gdzie postawiłby ją serwer (koniec tury, AI).
+func _resolve_pending_metropolis(player_id: String) -> void:
+	var pending: Dictionary = _state.get("pending_metropolis", {})
+	if pending.get("player", "") != player_id:
+		return
+	_state["pending_metropolis"] = {}
+	var sites: Array = pending["sites"].filter(func(island_id: String) -> bool: return _metropolis_sites(player_id).has(island_id))
+	_place_metropolis(player_id, _best_metropolis_site(sites), String(pending["origin"]))
+
+
+## Wyspy gracza, na których może stanąć nowa Metropolia (bez Metropolii), w kolejności mapy.
+func _metropolis_sites(player_id: String) -> Array:
+	var sites: Array = []
 	for island_id in MAP["islands"]:
 		var island: Dictionary = _state["islands"][island_id]
-		if island["owner"] != player_id or island.get("metropolis", false):
-			continue
-		var score := METROPOLIS_BUILDINGS.filter(func(building: String) -> bool: return building in island["buildings"]).size()
+		if island["owner"] == player_id and not island.get("metropolis", false):
+			sites.append(island_id)
+	return sites
+
+
+## Miejsce, które wybiera serwer: wyspa z największą liczbą różnych budynków z kompletu,
+## a przy remisie pierwsza w kolejności mapy. Pusty napis, gdy nie ma żadnej wyspy.
+func _best_metropolis_site(sites: Array) -> String:
+	var best := ""
+	var best_score := -1
+	for island_id: String in sites:
+		var buildings: Array = _state["islands"][island_id]["buildings"]
+		var score := METROPOLIS_BUILDINGS.filter(func(building: String) -> bool: return building in buildings).size()
 		if score > best_score:
 			best = island_id
 			best_score = score
@@ -925,14 +987,19 @@ func _remove_building(player_id: String, building: String, preferred: String) ->
 			return
 
 
-## Zwycięzcy na koniec cyklu: gracze z METROPOLISES_TO_WIN Metropoliami, a spośród nich ci
-## z największą ilością złota (przy remisie kilku). Pusta lista oznacza, że gra toczy się dalej.
-func _winners() -> Array:
+## Wynik na koniec cyklu: kandydaci z METROPOLISES_TO_WIN Metropoliami, ich złoto (na koniec gry
+## jawne, bo rozstrzyga remis) i zwycięzcy, czyli najbogatsi kandydaci (przy równym złocie kilku).
+## Pusty słownik oznacza, że gra toczy się dalej.
+func _victory() -> Dictionary:
 	var contenders: Array = _state["seating"].filter(func(player_id: String) -> bool: return MoveRules.metropolises_of(_state, player_id) >= METROPOLISES_TO_WIN)
 	if contenders.is_empty():
-		return []
-	var richest: int = contenders.map(func(player_id: String) -> int: return int(_state["players"][player_id]["gold"])).max()
-	return contenders.filter(func(player_id: String) -> bool: return int(_state["players"][player_id]["gold"]) == richest)
+		return {}
+	var gold := {}
+	for player_id: String in contenders:
+		gold[player_id] = int(_state["players"][player_id]["gold"])
+	var richest: int = gold.values().max()
+	var winners: Array = contenders.filter(func(player_id: String) -> bool: return gold[player_id] == richest)
+	return {"winners": winners, "contenders": contenders, "gold": gold}
 
 
 # =============================================================================

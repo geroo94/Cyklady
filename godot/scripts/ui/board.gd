@@ -22,6 +22,9 @@
 ##      ruch floty (tura Posejdona).
 ##   2. Podświetlony cel: sygnał move_requested, a w trybie budowy build_requested.
 ##   3. Ponowne kliknięcie wybranego pola, prawy przycisk albo Esc anulują wybór.
+##   4. Tryb wskazywania (pick_targets) dla paneli UI: miejsce rekrutacji, cel mocy
+##      stwora, wyspa dla Metropolii. Kliknięty cel wraca sygnałem target_picked,
+##      a Esc i prawy przycisk kończą tryb sygnałem pick_cancelled.
 ## Plansza wysyła tylko sygnały. Rozkaz do serwera wysyła UI (NetworkManager),
 ## a serwer i tak sprawdza go jeszcze raz.
 class_name Board
@@ -37,16 +40,25 @@ signal move_requested(from_id: String, to_id: String, action_type: String)
 signal build_requested(island_id: String)
 ## Podpowiedź dla gracza: opis pola pod kursorem, cele ruchu albo powód, dla którego ruchu nie ma.
 signal hint_changed(text: String)
+## Tryb wskazywania: gracz kliknął jeden z podanych celów (tryb już się zakończył).
+signal target_picked(territory_id: String)
+## Tryb wskazywania anulowany (Esc albo prawy przycisk).
+signal pick_cancelled
 
 const GameState := preload("res://scripts/autoload/GameStateManager.gd")
 ## Rodzaj celu w trybie budowy (MoveRules zwraca dla ruchu cele "MOVE" i "ATTACK").
 const TARGET_BUILD := "BUILD"
+## Rodzaj celu w trybie wskazywania (zielony). Cel ataku mocy stwora może mieć "ATTACK" (czerwony).
+const TARGET_PICK := "PICK"
+## Akcja wyboru w trybie wskazywania (pick_targets).
+const PICK := "PICK"
 const GOD_NAMES := {"POSEIDON": "Posejdona", "ARES": "Aresa", "ZEUS": "Zeusa", "ATHENA": "Ateny", "APOLLO": "Apolla"}
 const BUILDING_NAMES := {"PORT": "Port", "FORTRESS": "Forteca", "TEMPLE": "Świątynia", "UNIVERSITY": "Uniwersytet", "METROPOLIS": "Metropolia"}
 const CLICK_HINTS := {
 	MoveRules.TARGET_MOVE: "Kliknij: ruch.",
 	MoveRules.TARGET_ATTACK: "Kliknij: atak (bitwa).",
 	TARGET_BUILD: "Kliknij: budowa.",
+	TARGET_PICK: "Kliknij: wybierz to pole.",
 }
 
 ## Plansza sama śledzi GameStateManager.view. Wyłącz, gdy widok podajesz przez apply_view (np. w testach).
@@ -93,9 +105,12 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	var button := event as InputEventMouseButton
 	if event.is_action_pressed("ui_cancel") or (button != null and button.pressed and button.button_index == MOUSE_BUTTON_RIGHT):
+		var picking := selected_action == PICK
 		clear_selection()
 		hint_changed.emit("Wybór anulowany.")
 		get_viewport().set_input_as_handled()
+		if picking:
+			pick_cancelled.emit()
 
 
 # =============================================================================
@@ -109,7 +124,9 @@ func apply_view(new_view: Dictionary) -> void:
 		var node: TerritoryNode = _territories[territory_id]
 		var data := territory_state(territory_id)
 		node.apply_state(data, player_color(String(data.get("owner", ""))))
-	if selected_action != "":
+	if selected_action == PICK:
+		_apply_marks()  # cele wskazywania podaje panel UI, a nie reguły ruchu
+	elif selected_action != "":
 		# Wybór sprzed zmiany stanu: cele od nowa. Jeśli ruch nie jest już możliwy, wybór znika.
 		_select(selected_id, selected_action, false)
 
@@ -165,6 +182,23 @@ func highlight_valid_moves(selected_territory_id: String, action_type: String) -
 ## Ruch, który oznacza kliknięcie pola: z wyspy ruszają oddziały, z morza floty.
 static func action_for(territory_id: String) -> String:
 	return MoveRules.MOVE_TROOPS if ArchipelagoMap.is_island(territory_id) else MoveRules.MOVE_FLEET
+
+
+## Tryb wskazywania pola dla paneli UI: podświetla tylko `candidates`
+## { id pola: TARGET_PICK | MoveRules.TARGET_ATTACK | … }, a reszta planszy przygasa.
+## Podpowiedź `prompt` mówi graczowi, co wskazać. Kliknięty cel wraca sygnałem
+## target_picked. Pusta lista celów niczego nie podświetla.
+func pick_targets(candidates: Dictionary, prompt: String) -> void:
+	if candidates.is_empty():
+		clear_selection()
+		hint_changed.emit(prompt)
+		return
+	selected_id = ""
+	selected_action = PICK
+	targets = candidates.duplicate()
+	_apply_marks()
+	selection_changed.emit("", PICK, targets.duplicate())
+	hint_changed.emit(prompt)
 
 
 ## Koniec wyboru: pola wracają do zwykłego wyglądu.
@@ -358,6 +392,13 @@ func _on_territory_hovered(node: TerritoryNode) -> void:
 func _on_territory_clicked(node: TerritoryNode) -> void:
 	var clicked_id := node.territory_id
 	territory_clicked.emit(clicked_id)
+	if selected_action == PICK:
+		if targets.has(clicked_id):
+			clear_selection()
+			target_picked.emit(clicked_id)
+		else:
+			hint_changed.emit("%s nie jest celem. Wskaż podświetlone pole albo naciśnij Esc." % ArchipelagoMap.display_name(clicked_id))
+		return
 	if targets.has(clicked_id):
 		var from_id := selected_id
 		var action := selected_action
