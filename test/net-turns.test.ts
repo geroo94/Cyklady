@@ -235,7 +235,11 @@ describe('Tryby bez limitu i domyślne limity w LAN', () => {
     await host.joinRoom('lan', 'Gospodarz');
     await flush();
     const turn = host.turn ?? assert.fail('brak zegara tury');
-    assert.equal(turn.remainingMs, DEFAULT_TURN_TIMEOUTS[turn.details.reason === 'GOD_TURN' ? 'godTurn' : 'bidding']);
+    const limit = DEFAULT_TURN_TIMEOUTS[turn.details.reason === 'GOD_TURN' ? 'godTurn' : 'bidding'];
+    // Zegar systemowy biegnie między ustaleniem terminu a wysłaniem TURN_UPDATE, więc przy
+    // obciążonym komputerze mija czasem milisekunda albo więcej: dopuszczamy do 1 s różnicy.
+    const remaining = turn.remainingMs ?? assert.fail('serwer LAN powinien mieć limit czasu tury');
+    assert.ok(remaining <= limit && remaining >= limit - 1_000, `pozostało ${remaining} ms, limit ${limit} ms`);
     await server.stop();
   });
 });
